@@ -63,15 +63,17 @@ function LoginForm() {
               required
             />
           </div>
-          <button className="btn btn-primary" disabled={busy}>
-            {busy ? (
-              <>
-                <span className="spin" /> Signing in…
-              </>
-            ) : (
-              "Sign in"
-            )}
-          </button>
+          <div className="form-actions">
+            <button className="btn btn-primary" disabled={busy}>
+              {busy ? (
+                <>
+                  <span className="spin" /> Signing in…
+                </>
+              ) : (
+                "Sign in"
+              )}
+            </button>
+          </div>
         </form>
       </div>
     </main>

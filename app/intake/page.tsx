@@ -350,7 +350,7 @@ export default function IntakePage() {
               </div>
             </div>
 
-            <div className="row" style={{ marginTop: 20 }}>
+            <div className="form-actions" style={{ marginTop: 20 }}>
               <button className="btn btn-primary" disabled={submitting}>
                 {submitting ? (
                   <>
@@ -468,7 +468,7 @@ export default function IntakePage() {
               </>
             )}
 
-            <div className="row" style={{ marginTop: 24 }}>
+            <div className="form-actions" style={{ marginTop: 24 }}>
               <button
                 className="btn btn-primary"
                 onClick={confirmBooking}
@@ -525,7 +525,7 @@ export default function IntakePage() {
                 Reference: {result.submission.id}
               </p>
             </div>
-            <div className="row" style={{ marginTop: 20 }}>
+            <div className="form-actions" style={{ marginTop: 20 }}>
               <Link href="/" className="btn btn-ghost">
                 Back to home
               </Link>
