@@ -20,6 +20,8 @@ main lines, structural) is flagged up front.
 | Marketing landing page | `app/page.tsx` |
 | Multi-step intake → triage → scheduling | `app/intake/page.tsx` |
 | Ops dashboard (triage feedback loop) | `app/admin/page.tsx` |
+| Admin auth (signed-cookie login) | `lib/auth.ts`, `middleware.ts`, `app/admin/login` |
+| Email (confirmations + ops notify) | `lib/notify/*` |
 | API routes | `app/api/*` |
 | Triage engine (heuristic + LLM + feedback loop) | `lib/triage/*` |
 | Scheduling / availability | `lib/scheduling/availability.ts` |
@@ -125,6 +127,34 @@ is imported lazily, so it isn't required in JSON mode.
 | `GET /api/feedback` | Feedback records + agreement stats |
 | `GET /api/heuristic` | Current config + pending proposals |
 | `POST /api/heuristic` | Apply pending (or specific) proposals; bumps version |
+| `POST /api/admin/login` | Exchange admin password for a session cookie |
+| `POST /api/admin/logout` | Clear the admin session |
+
+The admin page and the `submissions` / `feedback` / `heuristic` APIs are gated;
+the customer-facing `intake` / `availability` / `book` APIs are public.
+
+---
+
+## Admin authentication
+
+`/admin` and the admin APIs are protected by `middleware.ts`. Sign-in exchanges a
+shared `ADMIN_PASSWORD` for an HMAC-signed, HTTP-only session cookie (8-hour TTL);
+the signing runs on the Web Crypto API so the same verification works in Edge
+middleware and Node route handlers.
+
+- **No `ADMIN_PASSWORD` set:** open in development (so the dashboard works out of the
+  box), locked in production (redirects to a setup notice). **Set it before deploying.**
+- Optionally set `ADMIN_SESSION_SECRET` to sign sessions independently of the password.
+- This is a single-operator scheme; swap in a real identity provider for multi-user.
+
+## Email
+
+Booking confirmations go to the customer and an optional ops notification goes to
+`EMAIL_OPS`, via `lib/notify`. With `RESEND_API_KEY` set they send through Resend
+(direct HTTP, no SDK dependency); without it they're logged to the server console so
+the flow works in dev. Email failures are caught and never fail a booking — the slot
+is already reserved and the customer sees an on-screen confirmation. Swapping
+providers (SendGrid/Postmark/SES/SMTP) is a single branch in `lib/notify/email.ts`.
 
 ---
 
@@ -142,7 +172,9 @@ filesystem, which is ephemeral on serverless).
 
 ## Notes / next steps
 
-- Notifications (email/SMS confirmations) are stubbed as UI copy — wire a provider next.
+- Email confirmations are wired (Resend + console fallback). SMS is a natural next
+  add — same `lib/notify` pattern.
 - A future mobile **app** can consume the same `/api/*` routes; the domain types in
   `lib/types.ts` are the shared contract.
-- No auth on `/admin` yet — add before exposing publicly.
+- `/admin` is gated by a shared password. For multiple operators, swap the
+  single-password scheme in `lib/auth.ts` for a real identity provider.
