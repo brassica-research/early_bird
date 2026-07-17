@@ -539,6 +539,47 @@ textarea {
   margin: 18px 0 8px;
   font-size: 0.95rem;
 }
+/* Swipeable day picker */
+.day-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.day-chip {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.day-chip:hover {
+  border-color: var(--amber);
+}
+.day-chip[data-on="true"] {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+  background: var(--surface-2);
+}
+.day-chip .day-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.day-chip .day-count {
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+}
 .slot-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
@@ -568,6 +609,37 @@ textarea {
   color: var(--ink-faint);
 }
 
+/* --- Admin responsive helpers --- */
+.stat-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 860px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.stack-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .stack-head {
+    flex-direction: column;
+  }
+  .stack-head .stack-actions {
+    width: 100%;
+    display: flex;
+    gap: 10px;
+  }
+  .stack-head .stack-actions .btn {
+    flex: 1;
+  }
+}
+
 /* --- Table --- */
 table {
   width: 100%;
@@ -586,6 +658,54 @@ th {
   font-size: 0.78rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* On narrow screens, render `.responsive` tables as stacked label/value cards
+   instead of a horizontally-clipped grid. */
+@media (max-width: 640px) {
+  table.responsive thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  table.responsive,
+  table.responsive tbody,
+  table.responsive tr,
+  table.responsive td {
+    display: block;
+    width: 100%;
+  }
+  table.responsive tr {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 12px;
+    margin-bottom: 10px;
+  }
+  table.responsive td {
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    text-align: right;
+  }
+  table.responsive tr td:last-child {
+    border-bottom: none;
+  }
+  table.responsive td::before {
+    content: attr(data-label);
+    font-weight: 700;
+    color: var(--ink-faint);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-align: left;
+    flex: 0 0 auto;
+  }
 }
 
 /* --- Footer --- */

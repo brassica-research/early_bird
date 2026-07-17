@@ -27,17 +27,33 @@ function UrgencyBadge({ urgency }: { urgency: string }) {
   );
 }
 
-function groupSlotsByDay(slots: Slot[]): [string, Slot[]][] {
-  const map = new Map<string, Slot[]>();
+interface DayGroup {
+  key: string;
+  short: string;
+  slots: Slot[];
+}
+
+function groupSlotsByDay(slots: Slot[]): DayGroup[] {
+  const map = new Map<string, DayGroup>();
   for (const s of slots) {
-    const day = new Date(s.start).toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-    });
-    (map.get(day) ?? map.set(day, []).get(day)!).push(s);
+    const d = new Date(s.start);
+    const key = d.toISOString().slice(0, 10);
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        key,
+        short: d.toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
+        slots: [],
+      };
+      map.set(key, g);
+    }
+    g.slots.push(s);
   }
-  return [...map.entries()];
+  return [...map.values()];
 }
 
 export default function IntakePage() {
@@ -59,8 +75,15 @@ export default function IntakePage() {
   const [triage, setTriage] = useState<TriageResult | null>(null);
 
   const [chosenSlot, setChosenSlot] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
   const [confirmedSlot, setConfirmedSlot] = useState<Slot | null>(null);
+
+  // Group availability by day so the customer picks a day first, then a window
+  // — instead of scrolling two weeks of slots at once (especially on mobile).
+  const dayGroups = result ? groupSlotsByDay(result.availability) : [];
+  const activeDay =
+    dayGroups.find((d) => d.key === selectedDay) ?? dayGroups[0] ?? null;
 
   // Progressive selection: choose affected area(s) first, then reveal the
   // specific items for just those areas — keeps the form uncluttered on mobile.
@@ -351,21 +374,22 @@ export default function IntakePage() {
             <h2 className="section-title">Here’s what we found</h2>
 
             <div className="card" style={{ padding: 22, marginTop: 12 }}>
-              <div className="spread" style={{ marginBottom: 12 }}>
-                <div className="row">
-                  <strong style={{ fontSize: "1.1rem" }}>
-                    {triage.categoryLabel}
-                  </strong>
-                  <UrgencyBadge urgency={triage.urgency} />
-                  {triage.withinNonLicensedScope ? (
-                    <span className="badge badge-ok">In scope</span>
-                  ) : (
-                    <span className="badge badge-high">Needs licensed pro</span>
-                  )}
-                </div>
-                <span className="muted" style={{ fontSize: "0.85rem" }}>
-                  ~{triage.estimatedDurationMin} min on-site
-                </span>
+              <div className="row" style={{ gap: 8 }}>
+                <strong style={{ fontSize: "1.1rem" }}>
+                  {triage.categoryLabel}
+                </strong>
+                <UrgencyBadge urgency={triage.urgency} />
+                {triage.withinNonLicensedScope ? (
+                  <span className="badge badge-ok">In scope</span>
+                ) : (
+                  <span className="badge badge-high">Needs licensed pro</span>
+                )}
+              </div>
+              <div
+                className="muted"
+                style={{ fontSize: "0.85rem", marginTop: 6, marginBottom: 12 }}
+              >
+                Estimated ~{triage.estimatedDurationMin} min on-site
               </div>
 
               <p style={{ marginTop: 0 }}>{triage.summary}</p>
@@ -405,11 +429,29 @@ export default function IntakePage() {
                 request is saved.
               </div>
             ) : (
-              groupSlotsByDay(result.availability).map(([day, slots]) => (
-                <div key={day}>
-                  <div className="slot-day">{day}</div>
-                  <div className="slot-grid">
-                    {slots.map((s) => (
+              <>
+                {/* Day picker (swipeable) */}
+                <div className="day-row" role="tablist" aria-label="Choose a day">
+                  {dayGroups.map((d) => (
+                    <button
+                      key={d.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeDay?.key === d.key}
+                      className="day-chip"
+                      data-on={activeDay?.key === d.key}
+                      onClick={() => setSelectedDay(d.key)}
+                    >
+                      <span className="day-name">{d.short}</span>
+                      <span className="day-count">{d.slots.length} open</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Windows for the selected day */}
+                {activeDay && (
+                  <div className="slot-grid" style={{ marginTop: 14 }}>
+                    {activeDay.slots.map((s) => (
                       <button
                         key={s.id}
                         className="slot"
@@ -418,14 +460,12 @@ export default function IntakePage() {
                         type="button"
                       >
                         <div style={{ fontWeight: 700 }}>{s.windowLabel}</div>
-                        <div className="cap">
-                          {s.capacity - s.booked} left
-                        </div>
+                        <div className="cap">{s.capacity - s.booked} left</div>
                       </button>
                     ))}
                   </div>
-                </div>
-              ))
+                )}
+              </>
             )}
 
             <div className="row" style={{ marginTop: 24 }}>
