@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Submission, FeedbackRecord } from "@/lib/types";
 import type { HeuristicConfig } from "@/lib/store/types";
 
@@ -39,6 +40,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const [config, setConfig] = useState<HeuristicConfig | null>(null);
   const [pending, setPending] = useState<PendingProposal[]>([]);
   const [stats, setStats] = useState<FeedbackStats | null>(null);
@@ -91,6 +93,12 @@ export default function AdminPage() {
     }
   }
 
+  async function logout() {
+    await fetch("/api/admin/logout", { method: "POST" });
+    router.push("/admin/login");
+    router.refresh();
+  }
+
   const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
 
   return (
@@ -108,9 +116,14 @@ export default function AdminPage() {
               from LLM triage below.
             </p>
           </div>
-          <button className="btn btn-ghost" onClick={load} disabled={loading}>
-            {loading ? "Refreshing…" : "Refresh"}
-          </button>
+          <div className="row">
+            <button className="btn btn-ghost" onClick={load} disabled={loading}>
+              {loading ? "Refreshing…" : "Refresh"}
+            </button>
+            <button className="btn btn-ghost" onClick={logout}>
+              Sign out
+            </button>
+          </div>
         </div>
 
         {message && (

@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { getInitializedStore } from "@/lib/store";
 import { bookSlot } from "@/lib/scheduling/availability";
 import { bookSchema } from "@/lib/validation";
+import { sendEmail } from "@/lib/notify/email";
+import {
+  bookingConfirmationEmail,
+  opsBookingNotification,
+} from "@/lib/notify/templates";
 
 export const runtime = "nodejs";
 
@@ -57,5 +62,26 @@ export async function POST(request: Request) {
     "confirmed",
   );
 
-  return NextResponse.json({ submission: updated, slot: result.slot });
+  // Send confirmation emails. Failures are logged but never fail the booking —
+  // the slot is already reserved and the customer has an on-screen confirmation.
+  let notified = false;
+  if (updated && result.slot) {
+    try {
+      const customer = await sendEmail(
+        bookingConfirmationEmail(updated, result.slot),
+      );
+      notified = customer.delivered;
+
+      const opsInbox = process.env.EMAIL_OPS;
+      if (opsInbox) {
+        await sendEmail(
+          opsBookingNotification(updated, result.slot, opsInbox),
+        );
+      }
+    } catch (err) {
+      console.error("Confirmation email failed:", err);
+    }
+  }
+
+  return NextResponse.json({ submission: updated, slot: result.slot, notified });
 }
