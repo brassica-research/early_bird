@@ -8,7 +8,7 @@ export default function Home() {
       <section className="hero">
         <div className="container">
           <span className="pill">
-            <span className="dot" /> On-site help, usually within the week
+            <span className="dot" /> On-site help, within a few hours
           </span>
           <h1>The early fix beats the big repair.</h1>
           <p className="lead">
