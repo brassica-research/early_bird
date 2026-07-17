@@ -1,0 +1,124 @@
+import { promises as fs } from "fs";
+import path from "path";
+import { getInitializedStore } from "@/lib/store";
+import type { Slot } from "@/lib/types";
+
+// ---------------------------------------------------------------------------
+// Availability engine.
+//
+// Expands the window templates in data/slots.seed.json into concrete, dated,
+// capacity-bearing slots for the next N days, and persists them via the store.
+// Booking goes through store.reserveSlot(), which is atomic in both drivers,
+// so a slot can never be booked beyond its capacity (no double-booking).
+// ---------------------------------------------------------------------------
+
+interface SlotSeed {
+  daysAhead: number;
+  servedWeekdays: number[]; // 0=Sun .. 6=Sat
+  windows: Array<{
+    label: string;
+    startHour: number;
+    endHour: number;
+    capacity: number;
+  }>;
+}
+
+const DATA_DIR = path.resolve(process.env.DATA_DIR || "./data");
+
+async function loadSeed(): Promise<SlotSeed> {
+  const raw = await fs.readFile(
+    path.join(DATA_DIR, "slots.seed.json"),
+    "utf8",
+  );
+  return JSON.parse(raw) as SlotSeed;
+}
+
+/** Deterministic id for a (date, window) pair so regeneration is idempotent. */
+function slotId(dateKey: string, label: string): string {
+  return `slot_${dateKey}_${label.replace(/[^a-z0-9]+/gi, "").toLowerCase()}`;
+}
+
+/** Build the concrete slot list for the horizon from the seed. */
+export function generateSlots(seed: SlotSeed, from: Date): Slot[] {
+  const slots: Slot[] = [];
+  for (let day = 0; day < seed.daysAhead; day++) {
+    const date = new Date(from);
+    date.setDate(date.getDate() + day);
+    if (!seed.servedWeekdays.includes(date.getDay())) continue;
+
+    const dateKey = date.toISOString().slice(0, 10); // YYYY-MM-DD
+    for (const w of seed.windows) {
+      const start = new Date(date);
+      start.setHours(w.startHour, 0, 0, 0);
+      const end = new Date(date);
+      end.setHours(w.endHour, 0, 0, 0);
+
+      // Skip windows that have already started today.
+      if (start.getTime() <= from.getTime()) continue;
+
+      slots.push({
+        id: slotId(dateKey, w.label),
+        start: start.toISOString(),
+        end: end.toISOString(),
+        windowLabel: w.label,
+        capacity: w.capacity,
+        booked: 0,
+      });
+    }
+  }
+  return slots;
+}
+
+/**
+ * Ensure the store has a current slot schedule. Regenerates when there are no
+ * slots yet, or when `force` is passed. Preserves existing bookings on
+ * regeneration by carrying over the `booked` count for matching slot ids.
+ */
+export async function ensureSchedule(force = false): Promise<Slot[]> {
+  const store = await getInitializedStore();
+  const hasSlots = await store.hasSlots();
+  if (hasSlots && !force) {
+    return store.listOpenSlots();
+  }
+
+  const seed = await loadSeed();
+  const fresh = generateSlots(seed, new Date());
+
+  if (force && hasSlots) {
+    // Carry over current booking counts so regeneration doesn't wipe bookings.
+    const current = await store.listOpenSlots();
+    const bookedById = new Map(current.map((s) => [s.id, s.booked]));
+    for (const s of fresh) {
+      const carried = bookedById.get(s.id);
+      if (carried != null) s.booked = Math.min(carried, s.capacity);
+    }
+  }
+
+  await store.replaceSlots(fresh);
+  return store.listOpenSlots();
+}
+
+export async function listAvailability(): Promise<Slot[]> {
+  await ensureSchedule(false);
+  const store = await getInitializedStore();
+  return store.listOpenSlots();
+}
+
+export interface BookingResult {
+  ok: boolean;
+  slot?: Slot;
+  reason?: string;
+}
+
+/** Atomically reserve capacity on a slot. */
+export async function bookSlot(slotId: string): Promise<BookingResult> {
+  const store = await getInitializedStore();
+  const slot = await store.reserveSlot(slotId);
+  if (!slot) {
+    return { ok: false, reason: "Slot is full or no longer available." };
+  }
+  return { ok: true, slot };
+}
+
+// Exported for potential admin use / tests.
+export const _internal = { generateSlots, slotId };

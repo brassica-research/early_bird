@@ -1,0 +1,11 @@
+{
+  "timezoneNote": "Times are interpreted in the server's local timezone.",
+  "daysAhead": 14,
+  "servedWeekdays": [1, 2, 3, 4, 5, 6],
+  "windows": [
+    { "label": "Morning (8am–11am)", "startHour": 8, "endHour": 11, "capacity": 2 },
+    { "label": "Midday (11am–2pm)", "startHour": 11, "endHour": 14, "capacity": 2 },
+    { "label": "Afternoon (2pm–5pm)", "startHour": 14, "endHour": 17, "capacity": 2 },
+    { "label": "Evening (5pm–8pm)", "startHour": 17, "endHour": 20, "capacity": 1 }
+  ]
+}
