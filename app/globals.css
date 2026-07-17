@@ -3,6 +3,8 @@
   --sunrise-2: #ff8c42;
   --amber: #f59e0b;
   --amber-ink: #7c4a03;
+  /* High-contrast ink for text on the bright amber buttons. */
+  --btn-ink: #241400;
   --ink: #1b2430;
   --ink-soft: #46586b;
   --ink-faint: #7c8aa0;
@@ -80,7 +82,7 @@ a {
 .nav {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 30;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter: saturate(180%) blur(8px);
   border-bottom: 1px solid var(--border);
@@ -89,7 +91,10 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 64px;
+  gap: 12px;
+  min-height: 60px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 .brand {
   display: flex;
@@ -97,7 +102,8 @@ a {
   gap: 10px;
   font-weight: 800;
   letter-spacing: -0.02em;
-  font-size: 1.15rem;
+  font-size: 1.12rem;
+  flex: 0 0 auto;
 }
 .brand .logo {
   width: 30px;
@@ -107,22 +113,93 @@ a {
   place-items: center;
   background: linear-gradient(135deg, var(--sunrise-1), var(--sunrise-2));
   font-size: 17px;
+  flex: 0 0 auto;
 }
-.nav-links {
+
+/* Compact CTA that always fits inside the bar. */
+.nav-cta {
+  padding: 8px 16px;
+  font-size: 0.92rem;
+  color: var(--btn-ink);
+}
+
+/* Desktop links (default) */
+.nav-desktop {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
-.nav-links a {
+.nav-desktop a:not(.btn) {
   padding: 8px 12px;
   border-radius: 8px;
   color: var(--ink-soft);
   font-weight: 600;
   font-size: 0.94rem;
+  white-space: nowrap;
 }
-.nav-links a:hover {
+.nav-desktop a:not(.btn):hover {
   background: var(--surface-3);
   color: var(--ink);
+}
+
+/* Mobile actions + hamburger (hidden on desktop) */
+.nav-mobile-actions {
+  display: none;
+  gap: 8px;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.nav-toggle {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.nav-toggle:hover {
+  background: var(--surface-3);
+}
+
+/* Mobile dropdown panel */
+.nav-mobile-panel {
+  display: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.nav-mobile-panel > .container {
+  display: flex;
+  flex-direction: column;
+  padding-top: 6px;
+  padding-bottom: 10px;
+}
+.nav-mobile-panel a {
+  padding: 12px 6px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.nav-mobile-panel a:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 760px) {
+  .nav-desktop {
+    display: none;
+  }
+  .nav-mobile-actions {
+    display: flex;
+  }
+  .nav-mobile-panel[data-open="true"] {
+    display: block;
+  }
 }
 
 /* --- Buttons --- */
@@ -149,7 +226,8 @@ a {
 }
 .btn-primary {
   background: linear-gradient(135deg, var(--sunrise-1), var(--sunrise-2));
-  color: #3d2400;
+  color: var(--btn-ink);
+  font-weight: 800;
   box-shadow: var(--shadow);
 }
 .btn-primary:hover:not(:disabled) {
@@ -365,7 +443,22 @@ textarea {
 .chip[data-on="true"] {
   background: linear-gradient(135deg, var(--sunrise-1), var(--sunrise-2));
   border-color: transparent;
-  color: #3d2400;
+  color: var(--btn-ink);
+}
+.cat-chip {
+  font-size: 0.94rem;
+}
+.subgroup {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.subgroup-label {
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
 }
 
 /* --- Badges --- */
@@ -530,7 +623,7 @@ ul.clean li {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(0, 0, 0, 0.2);
-  border-top-color: #3d2400;
+  border-top-color: var(--btn-ink);
   border-radius: 999px;
   animation: spin 0.7s linear infinite;
 }

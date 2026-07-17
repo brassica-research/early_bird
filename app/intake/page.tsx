@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { SERVICES } from "@/lib/services";
 import type { Submission, Slot, TriageResult } from "@/lib/types";
@@ -47,7 +47,8 @@ export default function IntakePage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [description, setDescription] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -61,17 +62,43 @@ export default function IntakePage() {
   const [booking, setBooking] = useState(false);
   const [confirmedSlot, setConfirmedSlot] = useState<Slot | null>(null);
 
-  const allExamples = useMemo(
-    () => SERVICES.flatMap((s) => s.examples),
-    [],
-  );
+  // Progressive selection: choose affected area(s) first, then reveal the
+  // specific items for just those areas — keeps the form uncluttered on mobile.
+  function toggleCategory(id: string) {
+    setSelectedCategories((prev) => {
+      if (prev.includes(id)) {
+        // Deselecting a category also clears any of its sub-selections.
+        const cat = SERVICES.find((s) => s.id === id);
+        if (cat) {
+          setSelectedItems((items) =>
+            items.filter((it) => !cat.examples.includes(it)),
+          );
+        }
+        return prev.filter((x) => x !== id);
+      }
+      return [...prev, id];
+    });
+  }
 
-  function toggleChip(label: string) {
-    setSelected((prev) =>
+  function toggleItem(label: string) {
+    setSelectedItems((prev) =>
       prev.includes(label)
         ? prev.filter((x) => x !== label)
         : [...prev, label],
     );
+  }
+
+  // Send specific items when chosen; fall back to the category name so a
+  // selected area still gives triage a signal even with no sub-item picked.
+  function buildAffectedServices(): string[] {
+    const out: string[] = [];
+    for (const cat of SERVICES) {
+      if (!selectedCategories.includes(cat.id)) continue;
+      const chosen = cat.examples.filter((e) => selectedItems.includes(e));
+      if (chosen.length) out.push(...chosen);
+      else out.push(cat.title);
+    }
+    return out;
   }
 
   async function submitIntake(e: React.FormEvent) {
@@ -88,7 +115,7 @@ export default function IntakePage() {
           email,
           phone,
           address,
-          affectedServices: selected,
+          affectedServices: buildAffectedServices(),
           description,
         }),
       });
@@ -222,26 +249,63 @@ export default function IntakePage() {
               <div className="form-field">
                 <label>
                   Affected services or appliances{" "}
-                  <span className="hint">— tap all that apply</span>
+                  <span className="hint">
+                    — pick the area(s), then narrow down
+                  </span>
                 </label>
                 <div className="chips">
-                  {allExamples.map((label) => (
+                  {SERVICES.map((cat) => (
                     <span
-                      key={label}
-                      className="chip"
-                      data-on={selected.includes(label)}
-                      onClick={() => toggleChip(label)}
+                      key={cat.id}
+                      className="chip cat-chip"
+                      data-on={selectedCategories.includes(cat.id)}
+                      onClick={() => toggleCategory(cat.id)}
                       role="button"
+                      aria-pressed={selectedCategories.includes(cat.id)}
                       tabIndex={0}
-                      onKeyDown={(e) =>
-                        (e.key === "Enter" || e.key === " ") &&
-                        toggleChip(label)
-                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleCategory(cat.id);
+                        }
+                      }}
                     >
-                      {label}
+                      <span aria-hidden="true">{cat.icon}</span> {cat.title}
                     </span>
                   ))}
                 </div>
+
+                {SERVICES.filter((c) =>
+                  selectedCategories.includes(c.id),
+                ).map((cat) => (
+                  <div className="subgroup" key={cat.id}>
+                    <div className="subgroup-label">
+                      <span aria-hidden="true">{cat.icon}</span> {cat.title}
+                      <span className="hint"> — specifics (optional)</span>
+                    </div>
+                    <div className="chips">
+                      {cat.examples.map((label) => (
+                        <span
+                          key={label}
+                          className="chip"
+                          data-on={selectedItems.includes(label)}
+                          onClick={() => toggleItem(label)}
+                          role="button"
+                          aria-pressed={selectedItems.includes(label)}
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggleItem(label);
+                            }
+                          }}
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="form-field" style={{ marginBottom: 0 }}>
