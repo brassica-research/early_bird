@@ -5,7 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 export const metadata: Metadata = {
   title: "Early Bird — On-Site Home Diagnostics, Troubleshooting & Repair",
   description:
-    "Same-week, on-site help for plumbing, electrical, appliances, HVAC & air quality, basic home repair, and internet/connectivity. Describe your issue and book a technician.",
+    "Fast, on-site help — often within a few hours — for plumbing, electrical, appliances, HVAC & air quality, basic home repair, and internet/connectivity. Describe your issue and book a technician.",
 };
 
 export default function RootLayout({

@@ -15,8 +15,8 @@ export default function Home() {
             Early Bird sends a skilled technician to your door for on-site
             diagnostics, troubleshooting, and repair across plumbing,
             electrical, appliances, HVAC & air quality, basic home repair, and
-            internet. Describe the problem — we triage it instantly and book a
-            visit.
+            internet. Describe the problem — we triage it instantly and get a
+            technician to you, often within a few hours.
           </p>
           <div className="hero-cta">
             <Link href="/intake" className="btn btn-primary">
