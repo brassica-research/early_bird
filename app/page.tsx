@@ -8,15 +8,15 @@ export default function Home() {
       <section className="hero">
         <div className="container">
           <span className="pill">
-            <span className="dot" /> On-site help, usually within the week
+            <span className="dot" /> On-site help, within a few hours
           </span>
           <h1>The early fix beats the big repair.</h1>
           <p className="lead">
             Early Bird sends a skilled technician to your door for on-site
             diagnostics, troubleshooting, and repair across plumbing,
             electrical, appliances, HVAC & air quality, basic home repair, and
-            internet. Describe the problem — we triage it instantly and book a
-            visit.
+            internet. Describe the problem — we triage it instantly and get a
+            technician to you, often within a few hours.
           </p>
           <div className="hero-cta">
             <Link href="/intake" className="btn btn-primary">

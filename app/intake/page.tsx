@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { SERVICES } from "@/lib/services";
 import type { Submission, Slot, TriageResult } from "@/lib/types";
@@ -27,17 +27,33 @@ function UrgencyBadge({ urgency }: { urgency: string }) {
   );
 }
 
-function groupSlotsByDay(slots: Slot[]): [string, Slot[]][] {
-  const map = new Map<string, Slot[]>();
+interface DayGroup {
+  key: string;
+  short: string;
+  slots: Slot[];
+}
+
+function groupSlotsByDay(slots: Slot[]): DayGroup[] {
+  const map = new Map<string, DayGroup>();
   for (const s of slots) {
-    const day = new Date(s.start).toLocaleDateString(undefined, {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-    });
-    (map.get(day) ?? map.set(day, []).get(day)!).push(s);
+    const d = new Date(s.start);
+    const key = d.toISOString().slice(0, 10);
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        key,
+        short: d.toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "short",
+          day: "numeric",
+        }),
+        slots: [],
+      };
+      map.set(key, g);
+    }
+    g.slots.push(s);
   }
-  return [...map.entries()];
+  return [...map.values()];
 }
 
 export default function IntakePage() {
@@ -47,7 +63,8 @@ export default function IntakePage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [description, setDescription] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
@@ -58,20 +75,53 @@ export default function IntakePage() {
   const [triage, setTriage] = useState<TriageResult | null>(null);
 
   const [chosenSlot, setChosenSlot] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
   const [confirmedSlot, setConfirmedSlot] = useState<Slot | null>(null);
 
-  const allExamples = useMemo(
-    () => SERVICES.flatMap((s) => s.examples),
-    [],
-  );
+  // Group availability by day so the customer picks a day first, then a window
+  // — instead of scrolling two weeks of slots at once (especially on mobile).
+  const dayGroups = result ? groupSlotsByDay(result.availability) : [];
+  const activeDay =
+    dayGroups.find((d) => d.key === selectedDay) ?? dayGroups[0] ?? null;
 
-  function toggleChip(label: string) {
-    setSelected((prev) =>
+  // Progressive selection: choose affected area(s) first, then reveal the
+  // specific items for just those areas — keeps the form uncluttered on mobile.
+  function toggleCategory(id: string) {
+    setSelectedCategories((prev) => {
+      if (prev.includes(id)) {
+        // Deselecting a category also clears any of its sub-selections.
+        const cat = SERVICES.find((s) => s.id === id);
+        if (cat) {
+          setSelectedItems((items) =>
+            items.filter((it) => !cat.examples.includes(it)),
+          );
+        }
+        return prev.filter((x) => x !== id);
+      }
+      return [...prev, id];
+    });
+  }
+
+  function toggleItem(label: string) {
+    setSelectedItems((prev) =>
       prev.includes(label)
         ? prev.filter((x) => x !== label)
         : [...prev, label],
     );
+  }
+
+  // Send specific items when chosen; fall back to the category name so a
+  // selected area still gives triage a signal even with no sub-item picked.
+  function buildAffectedServices(): string[] {
+    const out: string[] = [];
+    for (const cat of SERVICES) {
+      if (!selectedCategories.includes(cat.id)) continue;
+      const chosen = cat.examples.filter((e) => selectedItems.includes(e));
+      if (chosen.length) out.push(...chosen);
+      else out.push(cat.title);
+    }
+    return out;
   }
 
   async function submitIntake(e: React.FormEvent) {
@@ -88,7 +138,7 @@ export default function IntakePage() {
           email,
           phone,
           address,
-          affectedServices: selected,
+          affectedServices: buildAffectedServices(),
           description,
         }),
       });
@@ -222,26 +272,63 @@ export default function IntakePage() {
               <div className="form-field">
                 <label>
                   Affected services or appliances{" "}
-                  <span className="hint">— tap all that apply</span>
+                  <span className="hint">
+                    — pick the area(s), then narrow down
+                  </span>
                 </label>
                 <div className="chips">
-                  {allExamples.map((label) => (
+                  {SERVICES.map((cat) => (
                     <span
-                      key={label}
-                      className="chip"
-                      data-on={selected.includes(label)}
-                      onClick={() => toggleChip(label)}
+                      key={cat.id}
+                      className="chip cat-chip"
+                      data-on={selectedCategories.includes(cat.id)}
+                      onClick={() => toggleCategory(cat.id)}
                       role="button"
+                      aria-pressed={selectedCategories.includes(cat.id)}
                       tabIndex={0}
-                      onKeyDown={(e) =>
-                        (e.key === "Enter" || e.key === " ") &&
-                        toggleChip(label)
-                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleCategory(cat.id);
+                        }
+                      }}
                     >
-                      {label}
+                      <span aria-hidden="true">{cat.icon}</span> {cat.title}
                     </span>
                   ))}
                 </div>
+
+                {SERVICES.filter((c) =>
+                  selectedCategories.includes(c.id),
+                ).map((cat) => (
+                  <div className="subgroup" key={cat.id}>
+                    <div className="subgroup-label">
+                      <span aria-hidden="true">{cat.icon}</span> {cat.title}
+                      <span className="hint"> — specifics (optional)</span>
+                    </div>
+                    <div className="chips">
+                      {cat.examples.map((label) => (
+                        <span
+                          key={label}
+                          className="chip"
+                          data-on={selectedItems.includes(label)}
+                          onClick={() => toggleItem(label)}
+                          role="button"
+                          aria-pressed={selectedItems.includes(label)}
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggleItem(label);
+                            }
+                          }}
+                        >
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="form-field" style={{ marginBottom: 0 }}>
@@ -263,7 +350,7 @@ export default function IntakePage() {
               </div>
             </div>
 
-            <div className="row" style={{ marginTop: 20 }}>
+            <div className="form-actions" style={{ marginTop: 20 }}>
               <button className="btn btn-primary" disabled={submitting}>
                 {submitting ? (
                   <>
@@ -287,21 +374,22 @@ export default function IntakePage() {
             <h2 className="section-title">Here’s what we found</h2>
 
             <div className="card" style={{ padding: 22, marginTop: 12 }}>
-              <div className="spread" style={{ marginBottom: 12 }}>
-                <div className="row">
-                  <strong style={{ fontSize: "1.1rem" }}>
-                    {triage.categoryLabel}
-                  </strong>
-                  <UrgencyBadge urgency={triage.urgency} />
-                  {triage.withinNonLicensedScope ? (
-                    <span className="badge badge-ok">In scope</span>
-                  ) : (
-                    <span className="badge badge-high">Needs licensed pro</span>
-                  )}
-                </div>
-                <span className="muted" style={{ fontSize: "0.85rem" }}>
-                  ~{triage.estimatedDurationMin} min on-site
-                </span>
+              <div className="row" style={{ gap: 8 }}>
+                <strong style={{ fontSize: "1.1rem" }}>
+                  {triage.categoryLabel}
+                </strong>
+                <UrgencyBadge urgency={triage.urgency} />
+                {triage.withinNonLicensedScope ? (
+                  <span className="badge badge-ok">In scope</span>
+                ) : (
+                  <span className="badge badge-high">Needs licensed pro</span>
+                )}
+              </div>
+              <div
+                className="muted"
+                style={{ fontSize: "0.85rem", marginTop: 6, marginBottom: 12 }}
+              >
+                Estimated ~{triage.estimatedDurationMin} min on-site
               </div>
 
               <p style={{ marginTop: 0 }}>{triage.summary}</p>
@@ -341,11 +429,29 @@ export default function IntakePage() {
                 request is saved.
               </div>
             ) : (
-              groupSlotsByDay(result.availability).map(([day, slots]) => (
-                <div key={day}>
-                  <div className="slot-day">{day}</div>
-                  <div className="slot-grid">
-                    {slots.map((s) => (
+              <>
+                {/* Day picker (swipeable) */}
+                <div className="day-row" role="tablist" aria-label="Choose a day">
+                  {dayGroups.map((d) => (
+                    <button
+                      key={d.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeDay?.key === d.key}
+                      className="day-chip"
+                      data-on={activeDay?.key === d.key}
+                      onClick={() => setSelectedDay(d.key)}
+                    >
+                      <span className="day-name">{d.short}</span>
+                      <span className="day-count">{d.slots.length} open</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Windows for the selected day */}
+                {activeDay && (
+                  <div className="slot-grid" style={{ marginTop: 14 }}>
+                    {activeDay.slots.map((s) => (
                       <button
                         key={s.id}
                         className="slot"
@@ -354,17 +460,15 @@ export default function IntakePage() {
                         type="button"
                       >
                         <div style={{ fontWeight: 700 }}>{s.windowLabel}</div>
-                        <div className="cap">
-                          {s.capacity - s.booked} left
-                        </div>
+                        <div className="cap">{s.capacity - s.booked} left</div>
                       </button>
                     ))}
                   </div>
-                </div>
-              ))
+                )}
+              </>
             )}
 
-            <div className="row" style={{ marginTop: 24 }}>
+            <div className="form-actions" style={{ marginTop: 24 }}>
               <button
                 className="btn btn-primary"
                 onClick={confirmBooking}
@@ -421,7 +525,7 @@ export default function IntakePage() {
                 Reference: {result.submission.id}
               </p>
             </div>
-            <div className="row" style={{ marginTop: 20 }}>
+            <div className="form-actions" style={{ marginTop: 20 }}>
               <Link href="/" className="btn btn-ghost">
                 Back to home
               </Link>

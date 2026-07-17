@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import "./globals.css";
+import SiteHeader from "@/components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Early Bird — On-Site Home Diagnostics, Troubleshooting & Repair",
   description:
-    "Same-week, on-site help for plumbing, electrical, appliances, HVAC & air quality, basic home repair, and internet/connectivity. Describe your issue and book a technician.",
+    "Fast, on-site help — often within a few hours — for plumbing, electrical, appliances, HVAC & air quality, basic home repair, and internet/connectivity. Describe your issue and book a technician.",
 };
 
 export default function RootLayout({
@@ -16,22 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <nav className="nav">
-          <div className="container nav-inner">
-            <Link href="/" className="brand">
-              <span className="logo">🐦</span>
-              <span>Early Bird</span>
-            </Link>
-            <div className="nav-links">
-              <Link href="/#services">Services</Link>
-              <Link href="/#how">How it works</Link>
-              <Link href="/admin">Admin</Link>
-              <Link href="/intake" className="btn btn-primary" style={{ padding: "9px 16px" }}>
-                Book a visit
-              </Link>
-            </div>
-          </div>
-        </nav>
+        <SiteHeader />
         {children}
         <footer className="footer">
           <div className="container spread">

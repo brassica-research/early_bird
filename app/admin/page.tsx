@@ -100,11 +100,18 @@ export default function AdminPage() {
   }
 
   const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
 
   return (
     <main className="section">
       <div className="container">
-        <div className="spread">
+        <div className="stack-head">
           <div>
             <p className="eyebrow">Operations</p>
             <h2 className="section-title" style={{ marginBottom: 4 }}>
@@ -116,7 +123,7 @@ export default function AdminPage() {
               from LLM triage below.
             </p>
           </div>
-          <div className="row">
+          <div className="stack-actions">
             <button className="btn btn-ghost" onClick={load} disabled={loading}>
               {loading ? "Refreshing…" : "Refresh"}
             </button>
@@ -133,7 +140,7 @@ export default function AdminPage() {
         )}
 
         {/* Stats */}
-        <div className="grid cols-3" style={{ marginTop: 20 }}>
+        <div className="stat-grid" style={{ marginTop: 20 }}>
           <Stat label="Submissions" value={String(submissions.length)} />
           <Stat
             label="Triaged (LLM active)"
@@ -144,7 +151,7 @@ export default function AdminPage() {
             value={stats ? String(stats.openProposals) : "…"}
           />
         </div>
-        <div className="grid cols-3" style={{ marginTop: 18 }}>
+        <div className="stat-grid" style={{ marginTop: 16 }}>
           <Stat
             label="Category agreement (LLM vs heuristic)"
             value={pct(stats?.categoryAgreement ?? null)}
@@ -161,7 +168,7 @@ export default function AdminPage() {
 
         {/* Feedback loop */}
         <div className="card" style={{ padding: 22, marginTop: 28 }}>
-          <div className="spread">
+          <div className="stack-head">
             <div>
               <h3 style={{ margin: 0 }}>Heuristic improvements (pending)</h3>
               <p className="muted" style={{ margin: "4px 0 0" }}>
@@ -169,15 +176,15 @@ export default function AdminPage() {
                 heuristic. Apply them to bump the rules — no code edit.
               </p>
             </div>
-            <button
-              className="btn btn-primary"
-              onClick={applyAll}
-              disabled={applying || pending.length === 0}
-            >
-              {applying
-                ? "Applying…"
-                : `Apply all (${pending.length})`}
-            </button>
+            <div className="stack-actions">
+              <button
+                className="btn btn-primary"
+                onClick={applyAll}
+                disabled={applying || pending.length === 0}
+              >
+                {applying ? "Applying…" : `Apply all (${pending.length})`}
+              </button>
+            </div>
           </div>
 
           {pending.length === 0 ? (
@@ -187,7 +194,7 @@ export default function AdminPage() {
             </p>
           ) : (
             <div style={{ overflowX: "auto", marginTop: 12 }}>
-              <table>
+              <table className="responsive">
                 <thead>
                   <tr>
                     <th>Op</th>
@@ -201,22 +208,26 @@ export default function AdminPage() {
                 <tbody>
                   {pending.map((p, i) => (
                     <tr key={i}>
-                      <td>
+                      <td data-label="Op">
                         <code>{p.proposal.op}</code>
                       </td>
-                      <td>{p.proposal.category || p.proposal.urgency || "—"}</td>
-                      <td>
+                      <td data-label="Target">
+                        {p.proposal.category || p.proposal.urgency || "—"}
+                      </td>
+                      <td data-label="Term">
                         <strong>{p.proposal.term}</strong>
                       </td>
-                      <td>
+                      <td data-label="Detail">
                         {p.proposal.weight != null
                           ? `weight ${p.proposal.weight}`
                           : p.proposal.urgency
                             ? p.proposal.urgency
                             : "—"}
                       </td>
-                      <td className="muted">{p.proposal.rationale}</td>
-                      <td>{p.count}</td>
+                      <td data-label="Rationale" className="muted">
+                        {p.proposal.rationale}
+                      </td>
+                      <td data-label="Times proposed">{p.count}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -234,7 +245,7 @@ export default function AdminPage() {
             </p>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table>
+              <table className="responsive">
                 <thead>
                   <tr>
                     <th>When</th>
@@ -247,25 +258,25 @@ export default function AdminPage() {
                 <tbody>
                   {records.slice(0, 25).map((r) => (
                     <tr key={r.id}>
-                      <td className="muted">
-                        {new Date(r.createdAt).toLocaleString()}
+                      <td data-label="When" className="muted">
+                        {fmt(r.createdAt)}
                       </td>
-                      <td>
+                      <td data-label="Heuristic">
                         {r.heuristic.category} / {r.heuristic.urgency}
                       </td>
-                      <td>
+                      <td data-label="LLM">
                         {r.llm
                           ? `${r.llm.category} / ${r.llm.urgency}`
                           : "— (heuristic only)"}
                       </td>
-                      <td>
+                      <td data-label="Agree?">
                         {r.llmAvailable
                           ? r.categoriesAgree && r.urgenciesAgree
                             ? "✓"
                             : "✗"
                           : "n/a"}
                       </td>
-                      <td>{r.proposals.length || "—"}</td>
+                      <td data-label="Proposals">{r.proposals.length || "—"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -283,7 +294,7 @@ export default function AdminPage() {
             </p>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table>
+              <table className="responsive">
                 <thead>
                   <tr>
                     <th>When</th>
@@ -297,18 +308,18 @@ export default function AdminPage() {
                 <tbody>
                   {submissions.slice(0, 25).map((s) => (
                     <tr key={s.id}>
-                      <td className="muted">
-                        {new Date(s.createdAt).toLocaleString()}
+                      <td data-label="When" className="muted">
+                        {fmt(s.createdAt)}
                       </td>
-                      <td>{s.input.name}</td>
-                      <td>{s.triage.categoryLabel}</td>
-                      <td>{s.triage.urgency}</td>
-                      <td>
+                      <td data-label="Name">{s.input.name}</td>
+                      <td data-label="Category">{s.triage.categoryLabel}</td>
+                      <td data-label="Urgency">{s.triage.urgency}</td>
+                      <td data-label="Scope">
                         {s.triage.withinNonLicensedScope
                           ? "In scope"
                           : "Licensed pro"}
                       </td>
-                      <td>{s.bookingStatus}</td>
+                      <td data-label="Booking">{s.bookingStatus}</td>
                     </tr>
                   ))}
                 </tbody>
