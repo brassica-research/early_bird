@@ -70,28 +70,36 @@ export function generateSlots(seed: SlotSeed, from: Date): Slot[] {
 }
 
 /**
- * Ensure the store has a current slot schedule. Regenerates when there are no
- * slots yet, or when `force` is passed. Preserves existing bookings on
- * regeneration by carrying over the `booked` count for matching slot ids.
+ * Ensure the store has a current slot schedule for the (short) horizon defined
+ * in the seed. Because the horizon is only a couple of days, the schedule has
+ * to roll forward as time passes — so this regenerates whenever the freshly
+ * computed horizon contains a slot the store doesn't have yet (e.g. a new day),
+ * or when `force` is passed. Regeneration preserves existing bookings by
+ * carrying over each surviving slot's `booked` count (matched by its stable,
+ * date-based id), and naturally drops past days.
  */
 export async function ensureSchedule(force = false): Promise<Slot[]> {
   const store = await getInitializedStore();
   const hasSlots = await store.hasSlots();
-  if (hasSlots && !force) {
-    return store.listOpenSlots();
-  }
 
   const seed = await loadSeed();
   const fresh = generateSlots(seed, new Date());
 
-  if (force && hasSlots) {
-    // Carry over current booking counts so regeneration doesn't wipe bookings.
-    const current = await store.listOpenSlots();
-    const bookedById = new Map(current.map((s) => [s.id, s.booked]));
-    for (const s of fresh) {
-      const carried = bookedById.get(s.id);
-      if (carried != null) s.booked = Math.min(carried, s.capacity);
+  // Carry over booking counts for any slot that already exists in the store,
+  // so rolling the schedule forward never resurrects a booked slot as open.
+  let needsWrite = force || !hasSlots;
+  for (const s of fresh) {
+    const existing = await store.getSlot(s.id);
+    if (existing) {
+      if (existing.booked > 0) s.booked = Math.min(existing.booked, s.capacity);
+    } else {
+      // A slot in the current horizon is missing → schedule has drifted.
+      needsWrite = true;
     }
+  }
+
+  if (!needsWrite) {
+    return store.listOpenSlots();
   }
 
   await store.replaceSlots(fresh);

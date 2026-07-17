@@ -1,6 +1,6 @@
 {
   "timezoneNote": "Times are interpreted in the server's local timezone.",
-  "daysAhead": 14,
+  "daysAhead": 3,
   "servedWeekdays": [1, 2, 3, 4, 5, 6],
   "windows": [
     { "label": "Morning (8am–11am)", "startHour": 8, "endHour": 11, "capacity": 2 },
