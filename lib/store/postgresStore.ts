@@ -4,6 +4,12 @@ import type {
   FeedbackRecord,
   Slot,
   BookingStatus,
+  Assignment,
+  Charge,
+  ChargeStatus,
+  TechnicianAccount,
+  PasswordResetToken,
+  TechPresence,
 } from "@/lib/types";
 import { promises as fs } from "fs";
 import path from "path";
@@ -94,6 +100,31 @@ export class PostgresStore implements Store {
         id INT PRIMARY KEY DEFAULT 1,
         config JSONB NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS charges (
+        id TEXT PRIMARY KEY,
+        submission_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        data JSONB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tech_accounts (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE NOT NULL,
+        data JSONB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS reset_tokens (
+        token_hash TEXT PRIMARY KEY,
+        tech_id TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL,
+        data JSONB NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS tech_presence (
+        tech_id TEXT PRIMARY KEY,
+        data JSONB NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS charges_submission_idx
+        ON charges (submission_id);
+      CREATE INDEX IF NOT EXISTS submissions_dispatch_idx
+        ON submissions ((data->>'dispatchStatus'));
     `);
 
     // Seed heuristic config from the tracked seed file on first run.
@@ -166,6 +197,225 @@ export class PostgresStore implements Store {
        WHERE id = $1
        RETURNING data`,
       [id, slotId, status],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  // --- Technician dispatch -------------------------------------------------
+
+  async listQueueJobs(): Promise<Submission[]> {
+    const res = await this.query(
+      `SELECT data FROM submissions
+       WHERE data->>'dispatchStatus' = 'queued'
+       ORDER BY created_at DESC`,
+    );
+    return res.rows.map((r: any) => r.data);
+  }
+
+  async listTechJobs(techId: string): Promise<Submission[]> {
+    const res = await this.query(
+      `SELECT data FROM submissions
+       WHERE data#>>'{assignment,techId}' = $1
+         AND data->>'dispatchStatus' IN ('assigned', 'en_route')
+       ORDER BY data#>>'{assignment,claimedAt}' DESC`,
+      [techId],
+    );
+    return res.rows.map((r: any) => r.data);
+  }
+
+  async claimJob(
+    submissionId: string,
+    assignment: Assignment,
+  ): Promise<Submission | null> {
+    // Atomic guard: the WHERE clause only matches a still-queued job, so two
+    // concurrent claims can never both succeed.
+    const res = await this.query(
+      `UPDATE submissions
+         SET data = jsonb_set(
+               jsonb_set(data, '{dispatchStatus}', to_jsonb('assigned'::text), true),
+               '{assignment}', $2::jsonb, true)
+       WHERE id = $1 AND data->>'dispatchStatus' = 'queued'
+       RETURNING data`,
+      [submissionId, JSON.stringify(assignment)],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  async commitJobEta(
+    submissionId: string,
+    techId: string,
+    etaMinutes: number,
+    etaCommittedAt: string,
+    estimatedArrival: string,
+  ): Promise<Submission | null> {
+    const res = await this.query(
+      `UPDATE submissions
+         SET data = jsonb_set(
+               jsonb_set(
+                 jsonb_set(
+                   jsonb_set(data, '{dispatchStatus}', to_jsonb('en_route'::text), true),
+                   '{assignment,etaMinutes}', to_jsonb($3::int), true),
+                 '{assignment,etaCommittedAt}', to_jsonb($4::text), true),
+               '{assignment,estimatedArrival}', to_jsonb($5::text), true)
+       WHERE id = $1
+         AND data#>>'{assignment,techId}' = $2
+         AND data->>'dispatchStatus' IN ('assigned', 'en_route')
+       RETURNING data`,
+      [submissionId, techId, etaMinutes, etaCommittedAt, estimatedArrival],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  // --- Technician accounts + password reset --------------------------------
+
+  async createTechAccount(
+    account: TechnicianAccount,
+  ): Promise<TechnicianAccount> {
+    await this.query(
+      "INSERT INTO tech_accounts (id, email, data) VALUES ($1, $2, $3)",
+      [account.id, account.email, account],
+    );
+    return account;
+  }
+
+  async getTechAccountByEmail(
+    email: string,
+  ): Promise<TechnicianAccount | null> {
+    const res = await this.query(
+      "SELECT data FROM tech_accounts WHERE email = $1",
+      [email.trim().toLowerCase()],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  async getTechAccountById(id: string): Promise<TechnicianAccount | null> {
+    const res = await this.query(
+      "SELECT data FROM tech_accounts WHERE id = $1",
+      [id],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  async updateTechPassword(
+    id: string,
+    passwordHash: string,
+  ): Promise<TechnicianAccount | null> {
+    const res = await this.query(
+      `UPDATE tech_accounts
+         SET data = jsonb_set(
+               jsonb_set(data, '{passwordHash}', to_jsonb($2::text), true),
+               '{updatedAt}', to_jsonb($3::text), true)
+       WHERE id = $1
+       RETURNING data`,
+      [id, passwordHash, new Date().toISOString()],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  async createResetToken(token: PasswordResetToken): Promise<void> {
+    const client = await (await this.pool()).connect();
+    try {
+      await client.query("BEGIN");
+      // Invalidate the tech's prior unused tokens (single active token).
+      await client.query(
+        `UPDATE reset_tokens
+           SET data = jsonb_set(data, '{usedAt}', to_jsonb($2::text), true)
+         WHERE tech_id = $1 AND data->>'usedAt' IS NULL`,
+        [token.techId, new Date().toISOString()],
+      );
+      await client.query(
+        `INSERT INTO reset_tokens (token_hash, tech_id, expires_at, data)
+         VALUES ($1, $2, $3, $4)`,
+        [token.tokenHash, token.techId, token.expiresAt, token],
+      );
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async getResetToken(tokenHash: string): Promise<PasswordResetToken | null> {
+    const res = await this.query(
+      "SELECT data FROM reset_tokens WHERE token_hash = $1",
+      [tokenHash],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  async markResetTokenUsed(tokenHash: string, usedAt: string): Promise<void> {
+    await this.query(
+      `UPDATE reset_tokens
+         SET data = jsonb_set(data, '{usedAt}', to_jsonb($2::text), true)
+       WHERE token_hash = $1`,
+      [tokenHash, usedAt],
+    );
+  }
+
+  async listTechAccounts(): Promise<TechnicianAccount[]> {
+    const res = await this.query(
+      "SELECT data FROM tech_accounts ORDER BY data->>'name' ASC",
+    );
+    return res.rows.map((r: any) => r.data);
+  }
+
+  // --- Technician presence -------------------------------------------------
+
+  async upsertPresence(presence: TechPresence): Promise<void> {
+    await this.query(
+      `INSERT INTO tech_presence (tech_id, data) VALUES ($1, $2)
+       ON CONFLICT (tech_id) DO UPDATE SET data = EXCLUDED.data`,
+      [presence.techId, presence],
+    );
+  }
+
+  async listPresence(): Promise<TechPresence[]> {
+    const res = await this.query("SELECT data FROM tech_presence");
+    return res.rows.map((r: any) => r.data);
+  }
+
+  // --- Billing -------------------------------------------------------------
+
+  async createCharge(charge: Charge): Promise<Charge> {
+    await this.query(
+      `INSERT INTO charges (id, submission_id, created_at, data)
+       VALUES ($1, $2, $3, $4)`,
+      [charge.id, charge.submissionId, charge.createdAt, charge],
+    );
+    return charge;
+  }
+
+  async listChargesForSubmission(submissionId: string): Promise<Charge[]> {
+    const res = await this.query(
+      "SELECT data FROM charges WHERE submission_id = $1 ORDER BY created_at ASC",
+      [submissionId],
+    );
+    return res.rows.map((r: any) => r.data);
+  }
+
+  async listCharges(limit = 200): Promise<Charge[]> {
+    const res = await this.query(
+      "SELECT data FROM charges ORDER BY created_at DESC LIMIT $1",
+      [limit],
+    );
+    return res.rows.map((r: any) => r.data);
+  }
+
+  async updateChargeStatus(
+    id: string,
+    status: ChargeStatus,
+    providerRef?: string | null,
+  ): Promise<Charge | null> {
+    const res = await this.query(
+      `UPDATE charges
+         SET data = jsonb_set(
+               jsonb_set(data, '{status}', to_jsonb($2::text), true),
+               '{providerRef}', $3::jsonb, true)
+       WHERE id = $1
+       RETURNING data`,
+      [id, status, JSON.stringify(providerRef ?? null)],
     );
     return res.rows[0]?.data ?? null;
   }

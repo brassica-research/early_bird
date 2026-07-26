@@ -127,6 +127,93 @@ Submission ${submission.id}`;
   };
 }
 
+/** Format an estimated-arrival ISO time as a friendly clock time. */
+function formatArrival(iso: string | null): string {
+  if (!iso) return "shortly";
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/** Customer email: a technician has been assigned and is on the way. */
+export function technicianAssignedEmail(submission: Submission): EmailMessage {
+  const { input, triage, assignment } = submission;
+  const techName = assignment?.techName ?? "A technician";
+  const eta = assignment?.etaMinutes ?? null;
+  const arrival = formatArrival(assignment?.estimatedArrival ?? null);
+  const etaLine =
+    eta != null
+      ? `arriving in about ${eta} minutes (around ${arrival})`
+      : "on the way";
+
+  const html = layout(
+    "A technician is on the way 🛻",
+    `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(input.name)}, good news — <strong>${escapeHtml(
+      techName,
+    )}</strong> has been assigned to your ${escapeHtml(
+      triage.categoryLabel,
+    )} request and is ${etaLine}.</p>
+    ${row("Technician", escapeHtml(techName))}
+    ${row("ETA", eta != null ? `~${eta} min (around ${arrival})` : "shortly")}
+    ${row("Where", escapeHtml(input.address))}
+    <p style="margin:16px 0 0;color:#46586b;font-size:13px;">Reference: ${submission.id}</p>
+  `,
+  );
+
+  const text = `Hi ${input.name}, ${techName} has been assigned to your ${triage.categoryLabel} request and is ${etaLine}.
+
+Technician: ${techName}
+ETA: ${eta != null ? `~${eta} min (around ${arrival})` : "shortly"}
+Where: ${input.address}
+Reference: ${submission.id}`;
+
+  return {
+    to: input.email,
+    subject: `${techName} is on the way — ETA ~${eta ?? "soon"} min`,
+    html,
+    text,
+  };
+}
+
+/** Technician password-reset email with a single-use, time-limited link. */
+export function passwordResetEmail(
+  to: string,
+  name: string,
+  resetUrl: string,
+  expiresMinutes: number,
+): EmailMessage {
+  const html = layout(
+    "Reset your Early Bird password",
+    `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(name || "there")}, we received a request to reset your technician password.</p>
+    <p style="margin:0 0 16px;">
+      <a href="${escapeHtml(resetUrl)}" style="display:inline-block;background:#ff8c42;color:#241400;font-weight:700;text-decoration:none;padding:11px 18px;border-radius:9px;">Choose a new password</a>
+    </p>
+    <p style="margin:0 0 8px;color:#46586b;font-size:13px;">This link expires in ${expiresMinutes} minutes and can be used once.</p>
+    <p style="margin:0;color:#46586b;font-size:13px;">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+  `,
+  );
+  const text = `Hi ${name || "there"}, we received a request to reset your Early Bird technician password.
+
+Choose a new password: ${resetUrl}
+
+This link expires in ${expiresMinutes} minutes and can be used once. If you didn't request this, ignore this email.`;
+  return { to, subject: "Reset your Early Bird password", html, text };
+}
+
+/** Customer SMS body for the same event (opt-in only). */
+export function technicianAssignedSms(submission: Submission): string {
+  const { assignment, triage } = submission;
+  const techName = assignment?.techName ?? "A technician";
+  const eta = assignment?.etaMinutes ?? null;
+  const arrival = formatArrival(assignment?.estimatedArrival ?? null);
+  const etaPart =
+    eta != null ? `ETA ~${eta} min (around ${arrival})` : "on the way now";
+  return `Early Bird: ${techName} has been assigned to your ${triage.categoryLabel} request. ${etaPart}. Ref ${submission.id.slice(0, 8)}`;
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

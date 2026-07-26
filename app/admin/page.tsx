@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Submission, FeedbackRecord } from "@/lib/types";
 import type { HeuristicConfig } from "@/lib/store/types";
@@ -124,6 +125,9 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="stack-actions">
+            <Link href="/admin/dispatch" className="btn btn-primary">
+              Dispatch board →
+            </Link>
             <button className="btn btn-ghost" onClick={load} disabled={loading}>
               {loading ? "Refreshing…" : "Refresh"}
             </button>

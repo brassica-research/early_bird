@@ -4,6 +4,7 @@ import { getInitializedStore } from "@/lib/store";
 import { triageIntake } from "@/lib/triage";
 import { listAvailability } from "@/lib/scheduling/availability";
 import { intakeSchema } from "@/lib/validation";
+import { geocode } from "@/lib/geo/geocode";
 import type { Submission } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,7 +31,12 @@ export async function POST(request: Request) {
   const submissionId = randomUUID();
 
   try {
-    const { triage, heuristicTriage } = await triageIntake(input, submissionId);
+    // Triage and geocoding are independent — run them concurrently. Geocoding
+    // is best-effort; a null result just means no proximity data for this job.
+    const [{ triage, heuristicTriage }, location] = await Promise.all([
+      triageIntake(input, submissionId),
+      geocode(input.address),
+    ]);
 
     const submission: Submission = {
       id: submissionId,
@@ -40,6 +46,9 @@ export async function POST(request: Request) {
       heuristicTriage,
       slotId: null,
       bookingStatus: "requested",
+      location,
+      dispatchStatus: "queued",
+      assignment: null,
     };
 
     const store = await getInitializedStore();

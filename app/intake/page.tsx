@@ -66,6 +66,8 @@ export default function IntakePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [description, setDescription] = useState("");
+  const [clientUrgency, setClientUrgency] = useState<string>("");
+  const [smsOptIn, setSmsOptIn] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,6 +142,8 @@ export default function IntakePage() {
           address,
           affectedServices: buildAffectedServices(),
           description,
+          ...(clientUrgency ? { clientUrgency } : {}),
+          smsOptIn,
         }),
       });
       const data = await res.json();
@@ -331,7 +335,7 @@ export default function IntakePage() {
                 ))}
               </div>
 
-              <div className="form-field" style={{ marginBottom: 0 }}>
+              <div className="form-field">
                 <label htmlFor="desc">
                   Description of the issue / request
                 </label>
@@ -348,6 +352,53 @@ export default function IntakePage() {
                   </div>
                 )}
               </div>
+
+              <div className="form-field">
+                <label>
+                  How urgent is this?{" "}
+                  <span className="hint">— helps us prioritize</span>
+                </label>
+                <div className="chips">
+                  {[
+                    { v: "emergency", label: "Emergency" },
+                    { v: "high", label: "Today" },
+                    { v: "normal", label: "This week" },
+                    { v: "low", label: "Whenever" },
+                  ].map((o) => (
+                    <span
+                      key={o.v}
+                      className="chip"
+                      data-on={clientUrgency === o.v}
+                      role="button"
+                      aria-pressed={clientUrgency === o.v}
+                      tabIndex={0}
+                      onClick={() =>
+                        setClientUrgency(clientUrgency === o.v ? "" : o.v)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setClientUrgency(clientUrgency === o.v ? "" : o.v);
+                        }
+                      }}
+                    >
+                      {o.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <label className="check-row" style={{ marginBottom: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={smsOptIn}
+                  onChange={(e) => setSmsOptIn(e.target.checked)}
+                />
+                <span>
+                  Text me updates at this number (e.g. when a technician is
+                  assigned). Message &amp; data rates may apply.
+                </span>
+              </label>
             </div>
 
             <div className="form-actions" style={{ marginTop: 20 }}>

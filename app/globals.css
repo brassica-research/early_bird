@@ -762,6 +762,182 @@ ul.clean li {
   border-radius: 999px;
   animation: spin 0.7s linear infinite;
 }
+
+/* --- Checkbox row --- */
+.check-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  line-height: 1.45;
+}
+.check-row input {
+  width: auto;
+  margin-top: 3px;
+  flex: 0 0 auto;
+  accent-color: var(--amber);
+}
+
+/* --- Technician app --- */
+.sort-tabs {
+  display: flex;
+  gap: 6px;
+  background: var(--surface-3);
+  padding: 4px;
+  border-radius: 11px;
+  margin: 14px 0;
+}
+.sort-tabs button {
+  flex: 1;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 8px 6px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.sort-tabs button[data-on="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.job-card {
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.job-card .job-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.job-card .job-cat {
+  font-weight: 800;
+  font-size: 1.02rem;
+}
+.job-card .job-desc {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  margin: 6px 0 10px;
+}
+.job-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  margin-bottom: 12px;
+}
+.job-meta .m {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.dist {
+  font-weight: 700;
+  color: var(--ink);
+}
+.eta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+  margin: 10px 0;
+}
+.eta-grid button {
+  font: inherit;
+  font-weight: 700;
+  padding: 10px 6px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.eta-grid button[data-on="true"] {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+.tech-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.tech-bar .who {
+  font-weight: 700;
+}
+.duty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.dot-live {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--ok);
+  box-shadow: 0 0 0 3px var(--ok-bg);
+}
+.money {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+/* --- Dispatch location plot --- */
+.map-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.map-bg {
+  fill: var(--surface-2);
+}
+.map-grid {
+  stroke: var(--border);
+  stroke-width: 0.2;
+}
+.map-tech {
+  fill: var(--sunrise-2);
+  stroke: var(--surface);
+  stroke-width: 0.5;
+}
+.map-job {
+  fill: var(--info);
+  opacity: 0.75;
+}
+.map-empty {
+  padding: 28px 16px;
+  text-align: center;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.legend-tech {
+  background: var(--sunrise-2);
+}
+.legend-job {
+  background: var(--info);
+  border-radius: 2px;
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);

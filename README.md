@@ -158,11 +158,55 @@ providers (SendGrid/Postmark/SES/SMTP) is a single branch in `lib/notify/email.t
 
 ---
 
+## Technician dispatch (`/tech`)
+
+A mobile-first technician app (shares the same API; a native app can consume the same
+routes later). Requires `TECH_PASSCODE` — the **invite code** for creating accounts.
+
+- **Accounts + reset** (`lib/tech-auth.ts`, `lib/auth/*`): per-technician accounts,
+  gated at sign-up by the invite code. Passwords are **scrypt**-hashed and screened
+  against known-breached passwords (local list + HIBP k-anonymity); policy follows
+  **NIST 800-63B** (length-first, no composition rules). **Forgot-password** follows
+  the **OWASP** guidance: single-use, hashed, time-limited (30 min) tokens emailed out
+  of band; no account-existence disclosure. Sessions are **bound to the tech id** in
+  the signed cookie, so a caller can only ever act as themselves.
+- **Live queue**: every submission enters the queue. Technicians sort by **recency**,
+  **client-reported urgency**, or **proximity** (browser geolocation + geocoded job
+  addresses, haversine). Contact PII is withheld until a job is claimed.
+- **Claim-to-lock**: `claimJob` is atomic in both store drivers (a conditional update
+  guarded on `dispatchStatus = 'queued'`), so two technicians can never claim the same
+  job — the loser gets a 409 and the queue updates live for everyone (polling).
+- **Committed ETA** in 30-minute increments → the customer is notified a technician is
+  assigned, by **email** and (if they opted in) **SMS**.
+- **Billing** (`lib/payments/*`): technicians record charges against a job through a
+  provider abstraction — **manual ledger** by default, **Stripe**-ready by setting
+  `PAYMENTS_PROVIDER=stripe` (+ `npm i stripe`, `STRIPE_SECRET_KEY`).
+- **Presence**: on-duty technicians heartbeat their status + location, feeding the
+  admin board.
+
+## Admin dispatch board (`/admin/dispatch`)
+
+The owner's live operational picture: all queued jobs (full detail), every technician
+with on-duty status / last-seen / location and current assignments, and a **map** of
+technician (and geocoded job) locations. The map is a self-contained SVG plot — swap in
+Leaflet/Mapbox for a street basemap; the data is already lat/lng.
+
+## Portal security
+
+Both staff portals are hardened (`lib/security.ts`, `middleware.ts`, `next.config.js`):
+rate-limited logins with exponential backoff, same-origin (CSRF) checks on every
+state-changing request, `SameSite=Strict` HTTP-only session cookies, `no-store` on
+authenticated responses, and security headers (`X-Frame-Options`, `X-Content-Type-Options`,
+`Referrer-Policy`, `Permissions-Policy`, HSTS in production).
+
+---
+
 ## Environment variables
 
 See `.env.example`. Key ones: `ANTHROPIC_API_KEY`, `TRIAGE_MODEL` (default
-`claude-sonnet-5`), `STORE_DRIVER`, `DATABASE_URL`, `HEURISTIC_AUTO_APPLY`,
-`AUTO_APPLY_THRESHOLD`.
+`claude-sonnet-5`), `STORE_DRIVER`, `DATABASE_URL`; technician portal
+`TECH_PASSCODE`/`TECH_SESSION_SECRET`; `GEOCODER`; SMS `TWILIO_*`; billing
+`PAYMENTS_PROVIDER`/`STRIPE_SECRET_KEY`; email `RESEND_API_KEY`/`EMAIL_FROM`/`EMAIL_OPS`.
 
 ## Deploying to Vercel
 
@@ -172,9 +216,13 @@ filesystem, which is ephemeral on serverless).
 
 ## Notes / next steps
 
-- Email confirmations are wired (Resend + console fallback). SMS is a natural next
-  add — same `lib/notify` pattern.
-- A future mobile **app** can consume the same `/api/*` routes; the domain types in
+- Email + opt-in SMS are wired (Resend / Twilio, each with a console fallback).
+- A native mobile **app** can consume the same `/api/*` routes; the domain types in
   `lib/types.ts` are the shared contract.
-- `/admin` is gated by a shared password. For multiple operators, swap the
-  single-password scheme in `lib/auth.ts` for a real identity provider.
+- The live queue and dispatch board update via polling; swap to SSE/WebSockets for
+  instant push if desired.
+- The rate limiter is per-process (fine for one instance); back it with Redis for a
+  multi-instance deployment. `PAYMENTS_PROVIDER=stripe` and a Stripe key light up
+  real charges; the dispatch map can take a Leaflet/Mapbox basemap.
+- The customer slot-booking and the on-demand dispatch queue currently coexist — a
+  future pass could converge them (urgent jobs → dispatch, scheduled → slots).

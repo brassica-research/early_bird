@@ -41,6 +41,74 @@ export interface Store {
     status: BookingStatus,
   ): Promise<Submission | null>;
 
+  // --- Technician dispatch -------------------------------------------------
+  /** Jobs still awaiting a technician (dispatchStatus "queued"). */
+  listQueueJobs(): Promise<Submission[]>;
+  /** Jobs currently assigned to a technician (assigned/en_route). */
+  listTechJobs(techId: string): Promise<Submission[]>;
+  /**
+   * Atomically claim a queued job for a technician. Returns the updated
+   * submission, or null if it is no longer queued (another tech won the race).
+   */
+  claimJob(
+    submissionId: string,
+    assignment: import("@/lib/types").Assignment,
+  ): Promise<Submission | null>;
+  /**
+   * Commit an ETA on a job the given technician has claimed. Returns the
+   * updated submission, or null if the job isn't assigned to that tech.
+   */
+  commitJobEta(
+    submissionId: string,
+    techId: string,
+    etaMinutes: number,
+    etaCommittedAt: string,
+    estimatedArrival: string,
+  ): Promise<Submission | null>;
+
+  // --- Technician accounts + password reset --------------------------------
+  createTechAccount(
+    account: import("@/lib/types").TechnicianAccount,
+  ): Promise<import("@/lib/types").TechnicianAccount>;
+  getTechAccountByEmail(
+    email: string,
+  ): Promise<import("@/lib/types").TechnicianAccount | null>;
+  getTechAccountById(
+    id: string,
+  ): Promise<import("@/lib/types").TechnicianAccount | null>;
+  updateTechPassword(
+    id: string,
+    passwordHash: string,
+  ): Promise<import("@/lib/types").TechnicianAccount | null>;
+  /** Store a reset token (only its hash) and invalidate the tech's prior ones. */
+  createResetToken(
+    token: import("@/lib/types").PasswordResetToken,
+  ): Promise<void>;
+  getResetToken(
+    tokenHash: string,
+  ): Promise<import("@/lib/types").PasswordResetToken | null>;
+  markResetTokenUsed(tokenHash: string, usedAt: string): Promise<void>;
+  /** All technician accounts (admin roster). */
+  listTechAccounts(): Promise<import("@/lib/types").TechnicianAccount[]>;
+
+  // --- Technician presence -------------------------------------------------
+  upsertPresence(presence: import("@/lib/types").TechPresence): Promise<void>;
+  listPresence(): Promise<import("@/lib/types").TechPresence[]>;
+
+  // --- Billing -------------------------------------------------------------
+  createCharge(
+    charge: import("@/lib/types").Charge,
+  ): Promise<import("@/lib/types").Charge>;
+  listChargesForSubmission(
+    submissionId: string,
+  ): Promise<import("@/lib/types").Charge[]>;
+  listCharges(limit?: number): Promise<import("@/lib/types").Charge[]>;
+  updateChargeStatus(
+    id: string,
+    status: import("@/lib/types").ChargeStatus,
+    providerRef?: string | null,
+  ): Promise<import("@/lib/types").Charge | null>;
+
   // --- Slots ---------------------------------------------------------------
   /** Return open slots (booked < capacity) with start >= now, sorted by start. */
   listOpenSlots(): Promise<Slot[]>;
