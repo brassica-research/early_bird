@@ -22,7 +22,6 @@ export default function SiteHeader() {
         <nav className="nav-desktop" aria-label="Primary">
           <Link href="/#services">Services</Link>
           <Link href="/#how">How it works</Link>
-          <Link href="/admin">Admin</Link>
           <Link href="/intake" className="btn btn-primary nav-cta">
             Book a visit
           </Link>
@@ -58,9 +57,6 @@ export default function SiteHeader() {
           </Link>
           <Link href="/#how" onClick={close}>
             How it works
-          </Link>
-          <Link href="/admin" onClick={close}>
-            Admin
           </Link>
         </div>
       </div>
