@@ -50,6 +50,60 @@ rule-based heuristic.
 
 ---
 
+## Running the three sides locally
+
+All three run in the same app. Set a couple of env vars in `.env.local`, start the
+server, and open each surface:
+
+```bash
+# .env.local (minimum to exercise all three sides locally)
+ADMIN_PASSWORD=change-me-admin      # unlocks the admin side
+TECH_PASSCODE=change-me-invite      # invite code to create technician accounts
+# optional: ANTHROPIC_API_KEY, RESEND_API_KEY, TWILIO_*, GEOCODER, STRIPE_* …
+npm run dev
+```
+
+| Side | URL | How to use |
+| --- | --- | --- |
+| **Client** | `/` and `/intake` | Describe an issue → triage → pick a slot → book. No auth. |
+| **Technician** | `/tech` | First visit `/tech/register`, enter the `TECH_PASSCODE` invite code + your details. Then go on duty (allow location), work the queue, claim a job, commit an ETA, record a charge. Password reset at `/tech/forgot`. |
+| **Admin** | `/admin` and `/admin/dispatch` | Sign in with `ADMIN_PASSWORD`. Dashboard shows submissions + the triage feedback loop; **Dispatch board** shows the live queue, technicians (on-duty/location/assignments), and the map. |
+
+In dev, emails and SMS print to the **server console** unless `RESEND_API_KEY` /
+`TWILIO_*` are set — including the technician password-reset link.
+
+## Testing
+
+```bash
+npm test         # unit + integration + API-handler tests (fast, hermetic)
+npm run test:e2e # end-to-end HTTP flow (builds first via test:all, or run `npm run build`)
+npm run test:all # test → build → e2e (what CI runs)
+npm run test:watch
+```
+
+Tests are **hermetic** — no network or API keys required. Geocoding is disabled and the
+breach-password check degrades gracefully, so the suite is deterministic offline. Each
+test runs against an isolated JSON data dir (`.test-data` / `.e2e-data`).
+
+Coverage spans all three sides:
+
+- **Client** — intake validation + `POST /api/intake` (creates a queued job), triage
+  heuristic (classification, urgency, safety/scope flags), slot generation & booking.
+- **Technician** — password hashing (scrypt) + policy, account register/login, the
+  OWASP reset flow (single-use token, old password invalidated), atomic **claim (only
+  one wins)**, ETA + customer notification, billing (manual provider).
+- **Admin** — dispatch aggregation (queue + technicians + presence), session tokens,
+  rate limiting, and CSRF/same-origin checks.
+- **End-to-end** (`tests/e2e`) spawns the built server and runs the whole cross-side
+  path over HTTP with real cookies/middleware: register → intake → queue → claim →
+  409 on a second claim → ETA → charge → heartbeat → admin board → auth 401 → CSRF 403
+  → password reset.
+
+CI (`.github/workflows/ci.yml`) runs type-check → build → `npm test` → `npm run test:e2e`
+on every push and PR.
+
+---
+
 ## How triage works (LLM-primary, self-improving heuristic)
 
 Every intake runs through **two** engines:

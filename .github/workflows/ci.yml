@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      # Unit + integration + API-handler tests (fast, hermetic — no network,
+      # no API keys; geocoding disabled and breach-check degrades gracefully).
+      - name: Unit / integration / API tests
+        run: npm test
+
+      # End-to-end HTTP tests across client, technician, and admin. Reuses the
+      # build above and spawns the production server.
+      - name: End-to-end tests
+        run: npm run test:e2e
