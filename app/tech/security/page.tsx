@@ -148,8 +148,13 @@ export default function TechSecurityPage() {
               code, or enter the key manually:
             </p>
             <div className="form-field">
-              <label>Setup key</label>
-              <input readOnly value={setup.secret} onFocus={(e) => e.target.select()} />
+              <label htmlFor="setupkey">Setup key</label>
+              <input
+                id="setupkey"
+                readOnly
+                value={setup.secret}
+                onFocus={(e) => e.target.select()}
+              />
             </div>
             <details style={{ marginBottom: 12 }}>
               <summary className="muted" style={{ cursor: "pointer" }}>
