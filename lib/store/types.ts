@@ -80,6 +80,30 @@ export interface Store {
     id: string,
     passwordHash: string,
   ): Promise<import("@/lib/types").TechnicianAccount | null>;
+  /** Set (or clear) a technician's TOTP secret + enabled flag. */
+  updateTechTotp(
+    id: string,
+    totpSecret: string | null,
+    totpEnabled: boolean,
+  ): Promise<import("@/lib/types").TechnicianAccount | null>;
+  /** All jobs ever assigned to a technician (any dispatch status), newest first. */
+  listAllTechJobs(techId: string): Promise<import("@/lib/types").Submission[]>;
+
+  // --- Duty sessions (clock in/out history) --------------------------------
+  /** Open a duty session for the tech if none is open; returns the open one. */
+  openDutySession(
+    session: import("@/lib/types").DutySession,
+  ): Promise<import("@/lib/types").DutySession>;
+  /** Close the tech's open duty session, if any. */
+  closeOpenDutySession(
+    techId: string,
+    clockOutAt: string,
+  ): Promise<import("@/lib/types").DutySession | null>;
+  /** Duty sessions for a tech at/after `sinceIso`, newest first. */
+  listDutySessions(
+    techId: string,
+    sinceIso?: string,
+  ): Promise<import("@/lib/types").DutySession[]>;
   /** Store a reset token (only its hash) and invalidate the tech's prior ones. */
   createResetToken(
     token: import("@/lib/types").PasswordResetToken,

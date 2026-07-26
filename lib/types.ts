@@ -203,9 +203,24 @@ export interface TechnicianAccount {
   phone?: string;
   /** Encoded scrypt hash (algorithm$params$salt$hash). */
   passwordHash: string;
+  /** Base32 TOTP secret, if the technician has enrolled a second factor. */
+  totpSecret?: string | null;
+  /** Whether the second factor is active (verified during enrollment). */
+  totpEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
   disabled?: boolean;
+}
+
+/**
+ * A technician on-duty session: clock-in to clock-out. Retained long-term
+ * (up to 5 years) so the admin can review duty history.
+ */
+export interface DutySession {
+  id: string;
+  techId: string;
+  clockInAt: string;
+  clockOutAt: string | null;
 }
 
 /** Live technician presence: on-duty status and last-known location. */

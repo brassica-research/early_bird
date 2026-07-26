@@ -38,6 +38,11 @@ export const techRegisterSchema = z.object({
 export const techLoginSchema = z.object({
   email: z.string().trim().email("Enter a valid email").max(200),
   password: z.string().min(1),
+  token: z.string().trim().max(10).optional(),
+});
+
+export const totpTokenSchema = z.object({
+  token: z.string().trim().min(6).max(10),
 });
 
 export const forgotSchema = z.object({

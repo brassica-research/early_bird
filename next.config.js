@@ -20,11 +20,24 @@ const securityHeaders = [
     : []),
 ];
 
+// Optional non-obvious admin path. When ADMIN_BASENAME is set to something
+// other than "admin", the console is served from that secret slug and the
+// literal /admin path is hidden (see middleware.ts).
+const adminBase = (process.env.ADMIN_BASENAME || "admin").replace(/^\/|\/$/g, "");
+
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
+  },
+  async rewrites() {
+    if (!adminBase || adminBase === "admin") return [];
+    // Serve the /admin route tree from the secret slug (URL stays on the slug).
+    return [
+      { source: `/${adminBase}`, destination: "/admin" },
+      { source: `/${adminBase}/:path*`, destination: "/admin/:path*" },
+    ];
   },
 };
 

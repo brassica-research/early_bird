@@ -11,6 +11,8 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [token, setToken] = useState("");
+  const [need2fa, setNeed2fa] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -22,10 +24,11 @@ function LoginForm() {
       const res = await fetch("/api/tech/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, token: token || undefined }),
       });
       const data = await res.json();
       if (!res.ok) {
+        if (data.need2fa) setNeed2fa(true);
         setError(data.error || "Sign-in failed.");
         return;
       }
@@ -65,7 +68,10 @@ function LoginForm() {
               required
             />
           </div>
-          <div className="form-field" style={{ marginBottom: 16 }}>
+          <div
+            className="form-field"
+            style={{ marginBottom: need2fa ? undefined : 16 }}
+          >
             <label htmlFor="pw">Password</label>
             <input
               id="pw"
@@ -76,6 +82,20 @@ function LoginForm() {
               required
             />
           </div>
+          {need2fa && (
+            <div className="form-field" style={{ marginBottom: 16 }}>
+              <label htmlFor="code">Authenticator code</label>
+              <input
+                id="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="123456"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                autoFocus
+              />
+            </div>
+          )}
           <div className="form-actions">
             <button className="btn btn-primary" disabled={busy}>
               {busy ? (

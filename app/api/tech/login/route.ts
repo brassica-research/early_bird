@@ -48,9 +48,16 @@ export async function POST(request: Request) {
     return noStoreJson({ error: "Enter your email and password." }, { status: 400 });
   }
 
-  const result = await loginTech(parsed.data.email, parsed.data.password);
+  const result = await loginTech(
+    parsed.data.email,
+    parsed.data.password,
+    parsed.data.token,
+  );
   if (!result.ok || !result.account) {
-    return noStoreJson({ error: result.reason }, { status: 401 });
+    return noStoreJson(
+      { error: result.reason, need2fa: result.need2fa },
+      { status: 401 },
+    );
   }
 
   rateLimitReset(`tech-login:${clientIp(request)}`);

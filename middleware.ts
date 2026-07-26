@@ -9,37 +9,48 @@ import {
 } from "@/lib/auth";
 
 // ---------------------------------------------------------------------------
-// Protects the two staff areas — the admin dashboard and the technician app —
+// Protects the two staff areas — the admin console and the technician app —
 // each behind its own signed-cookie gate. Customer routes are never matched.
 //
-// If a gate isn't configured (no password/passcode): open in development so the
-// area is usable out of the box, locked in production.
+// The admin console can be served from a NON-OBVIOUS slug (ADMIN_BASENAME):
+// when set, requests to that slug are gated + rewritten to /admin, while the
+// literal /admin path is hidden (404) so it can't be discovered by scanning.
 // ---------------------------------------------------------------------------
+
+const ADMIN_BASE = (process.env.ADMIN_BASENAME || "admin").replace(
+  /^\/|\/$/g,
+  "",
+);
+const ADMIN_CUSTOM = ADMIN_BASE !== "admin";
 
 interface Gate {
   cookie: string;
   loginPath: string;
   secret: () => string | null;
   notConfiguredMsg: string;
-  /** True if this gate owns the given path (excluding its own login route). */
   owns: (pathname: string) => boolean;
 }
 
 const GATES: Gate[] = [
   {
     cookie: ADMIN_COOKIE,
-    loginPath: "/admin/login",
+    loginPath: `/${ADMIN_BASE}/login`,
     secret: getAdminSecret,
     notConfiguredMsg: "Admin is not configured. Set ADMIN_PASSWORD.",
-    owns: (p) =>
-      p === "/admin" ||
-      (p.startsWith("/admin/") && p !== "/admin/login") ||
-      p.startsWith("/api/submissions") ||
-      p.startsWith("/api/feedback") ||
-      p.startsWith("/api/heuristic") ||
-      (p.startsWith("/api/admin/") &&
-        p !== "/api/admin/login" &&
-        p !== "/api/admin/logout"),
+    owns: (p) => {
+      const login = `/${ADMIN_BASE}/login`;
+      const inPages =
+        p === `/${ADMIN_BASE}` ||
+        (p.startsWith(`/${ADMIN_BASE}/`) && p !== login);
+      const inApi =
+        p.startsWith("/api/submissions") ||
+        p.startsWith("/api/feedback") ||
+        p.startsWith("/api/heuristic") ||
+        (p.startsWith("/api/admin/") &&
+          p !== "/api/admin/login" &&
+          p !== "/api/admin/logout");
+      return inPages || inApi;
+    },
   },
   {
     cookie: TECH_COOKIE,
@@ -47,7 +58,6 @@ const GATES: Gate[] = [
     secret: getTechSecret,
     notConfiguredMsg: "Technician access is not configured. Set TECH_PASSCODE.",
     owns: (p) => {
-      // Public (unauthenticated) technician auth surfaces.
       const PUBLIC = new Set([
         "/tech/login",
         "/tech/register",
@@ -59,24 +69,25 @@ const GATES: Gate[] = [
         "/api/tech/reset",
       ]);
       if (PUBLIC.has(p)) return false;
-      return (
-        p === "/tech" ||
-        p.startsWith("/tech/") ||
-        p.startsWith("/api/tech/")
-      );
+      return p === "/tech" || p.startsWith("/tech/") || p.startsWith("/api/tech/");
     },
   },
 ];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Hide the default /admin path when a non-obvious slug is configured.
+  if (ADMIN_CUSTOM && (pathname === "/admin" || pathname.startsWith("/admin/"))) {
+    return new NextResponse("Not found", { status: 404 });
+  }
+
   const gate = GATES.find((g) => g.owns(pathname));
   if (!gate) return NextResponse.next();
 
   const isApi = pathname.startsWith("/api/");
   const secret = gate.secret();
 
-  // Not configured: open in dev, locked in prod.
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
       if (isApi) {
@@ -105,14 +116,9 @@ export async function middleware(request: NextRequest) {
   return NextResponse.redirect(url);
 }
 
+// Run on everything except Next internals and static assets (the matcher must
+// be static, so we can't name the configurable admin slug here — the gate
+// logic above matches it at runtime and no-ops on everything else).
 export const config = {
-  matcher: [
-    "/admin/:path*",
-    "/tech/:path*",
-    "/api/submissions/:path*",
-    "/api/feedback/:path*",
-    "/api/heuristic/:path*",
-    "/api/admin/:path*",
-    "/api/tech/:path*",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

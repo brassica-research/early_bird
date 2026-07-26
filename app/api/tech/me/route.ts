@@ -10,6 +10,11 @@ export async function GET() {
     return noStoreJson({ error: "Not signed in." }, { status: 401 });
   }
   return noStoreJson({
-    tech: { id: tech.id, name: tech.name, email: tech.email },
+    tech: {
+      id: tech.id,
+      name: tech.name,
+      email: tech.email,
+      twoFactorEnabled: Boolean(tech.totpEnabled),
+    },
   });
 }

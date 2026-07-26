@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { URGENCY_RANK, type Submission, type Charge } from "@/lib/types";
 
@@ -235,6 +236,13 @@ export default function TechApp() {
             >
               {onDuty ? "Go off duty" : "Go on duty"}
             </button>
+            <Link
+              href="/tech/security"
+              className="btn btn-ghost"
+              style={{ padding: "8px 14px" }}
+            >
+              Security
+            </Link>
             <button
               className="btn btn-ghost"
               style={{ padding: "8px 14px" }}

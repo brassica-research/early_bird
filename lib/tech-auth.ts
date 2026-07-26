@@ -3,6 +3,7 @@ import { getInitializedStore } from "@/lib/store";
 import { getTechPasscode, safeEqual } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { validateNewPassword } from "@/lib/auth/passwordPolicy";
+import { verifyTotp, generateTotpSecret, otpauthUrl } from "@/lib/auth/totp";
 import { sendEmail } from "@/lib/notify/email";
 import { passwordResetEmail } from "@/lib/notify/templates";
 import type { TechnicianAccount } from "@/lib/types";
@@ -84,11 +85,14 @@ export interface LoginResult {
   ok: boolean;
   account?: TechnicianAccount;
   reason?: string;
+  /** True when the password was right but a valid second factor is still needed. */
+  need2fa?: boolean;
 }
 
 export async function loginTech(
   email: string,
   password: string,
+  token?: string,
 ): Promise<LoginResult> {
   const store = await getInitializedStore();
   const account = await store.getTechAccountByEmail(email.trim().toLowerCase());
@@ -98,6 +102,17 @@ export async function loginTech(
   if (!account || account.disabled || !ok) {
     return { ok: false, reason: "Incorrect email or password." };
   }
+
+  // Second factor, when the technician has enrolled one.
+  if (account.totpEnabled && account.totpSecret) {
+    if (!token) {
+      return { ok: false, need2fa: true, reason: "Authenticator code required." };
+    }
+    if (!verifyTotp(account.totpSecret, token)) {
+      return { ok: false, need2fa: true, reason: "Incorrect authenticator code." };
+    }
+  }
+
   return { ok: true, account };
 }
 
@@ -138,6 +153,64 @@ export async function requestPasswordReset(
 export interface ResetResult {
   ok: boolean;
   reason?: string;
+}
+
+// --- Technician two-factor (TOTP) enrollment -------------------------------
+
+export interface Setup2faResult {
+  ok: boolean;
+  secret?: string;
+  otpauthUrl?: string;
+  reason?: string;
+}
+
+/** Begin 2FA enrollment: mint a secret (not yet enabled) and return it. */
+export async function setupTech2fa(techId: string): Promise<Setup2faResult> {
+  const store = await getInitializedStore();
+  const account = await store.getTechAccountById(techId);
+  if (!account) return { ok: false, reason: "Account not found." };
+  const secret = generateTotpSecret();
+  // Stored but not enabled until a code is verified.
+  await store.updateTechTotp(techId, secret, false);
+  return {
+    ok: true,
+    secret,
+    otpauthUrl: otpauthUrl(secret, account.email),
+  };
+}
+
+/** Finish enrollment: verify a code against the pending secret and enable 2FA. */
+export async function enableTech2fa(
+  techId: string,
+  token: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const store = await getInitializedStore();
+  const account = await store.getTechAccountById(techId);
+  if (!account || !account.totpSecret) {
+    return { ok: false, reason: "Start setup first." };
+  }
+  if (!verifyTotp(account.totpSecret, token)) {
+    return { ok: false, reason: "That code didn't match — try again." };
+  }
+  await store.updateTechTotp(techId, account.totpSecret, true);
+  return { ok: true };
+}
+
+/** Disable 2FA — requires a current valid code to prove possession. */
+export async function disableTech2fa(
+  techId: string,
+  token: string,
+): Promise<{ ok: boolean; reason?: string }> {
+  const store = await getInitializedStore();
+  const account = await store.getTechAccountById(techId);
+  if (!account || !account.totpSecret || !account.totpEnabled) {
+    return { ok: false, reason: "Two-factor isn't enabled." };
+  }
+  if (!verifyTotp(account.totpSecret, token)) {
+    return { ok: false, reason: "Incorrect code." };
+  }
+  await store.updateTechTotp(techId, null, false);
+  return { ok: true };
 }
 
 export async function resetPassword(

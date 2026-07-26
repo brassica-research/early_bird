@@ -2,9 +2,11 @@ import {
   ADMIN_COOKIE,
   getAdminPassword,
   getAdminSecret,
+  getAdminTotpSecret,
   createSessionToken,
   safeEqual,
 } from "@/lib/auth";
+import { verifyTotp } from "@/lib/auth/totp";
 import {
   rateLimit,
   rateLimitReset,
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { password?: string };
+  let body: { password?: string; token?: string };
   try {
     body = await request.json();
   } catch {
@@ -52,6 +54,24 @@ export async function POST(request: Request) {
   const provided = typeof body.password === "string" ? body.password : "";
   if (!provided || !safeEqual(provided, password)) {
     return noStoreJson({ error: "Incorrect password." }, { status: 401 });
+  }
+
+  // Second factor: when a TOTP secret is configured, a valid code is required.
+  const totpSecret = getAdminTotpSecret();
+  if (totpSecret) {
+    const token = typeof body.token === "string" ? body.token : "";
+    if (!token) {
+      return noStoreJson(
+        { error: "Authenticator code required.", need2fa: true },
+        { status: 401 },
+      );
+    }
+    if (!verifyTotp(totpSecret, token)) {
+      return noStoreJson(
+        { error: "Incorrect authenticator code.", need2fa: true },
+        { status: 401 },
+      );
+    }
   }
 
   rateLimitReset(`admin-login:${clientIp(request)}`);

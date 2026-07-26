@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { getInitializedStore } from "@/lib/store";
 import { getSessionTechId } from "@/lib/tech-session";
 import { heartbeatSchema } from "@/lib/validation";
@@ -27,12 +28,27 @@ export async function POST(request: Request) {
   }
 
   const { onDuty, lat, lng } = parsed.data;
+  const now = new Date().toISOString();
   const store = await getInitializedStore();
   await store.upsertPresence({
     techId,
     onDuty,
     location: lat != null && lng != null ? { lat, lng } : null,
-    lastSeenAt: new Date().toISOString(),
+    lastSeenAt: now,
   });
+
+  // Record duty history: open a session on clock-in (idempotent), close it on
+  // clock-out.
+  if (onDuty) {
+    await store.openDutySession({
+      id: randomUUID(),
+      techId,
+      clockInAt: now,
+      clockOutAt: null,
+    });
+  } else {
+    await store.closeOpenDutySession(techId, now);
+  }
+
   return noStoreJson({ ok: true });
 }

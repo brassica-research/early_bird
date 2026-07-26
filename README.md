@@ -245,6 +245,11 @@ with on-duty status / last-seen / location and current assignments, and a **map*
 technician (and geocoded job) locations. The map is a self-contained SVG plot — swap in
 Leaflet/Mapbox for a street basemap; the data is already lat/lng.
 
+**Technician history** — each technician on the board links to a detail view
+(`/admin/technician/[id]`) showing their **duty history** (clock-in/out sessions with
+durations, retained up to **5 years**) and **every job they've worked** with full
+details. Duty sessions are logged automatically from the on-duty/off-duty heartbeats.
+
 ## Portal security
 
 Both staff portals are hardened (`lib/security.ts`, `middleware.ts`, `next.config.js`):
@@ -252,6 +257,20 @@ rate-limited logins with exponential backoff, same-origin (CSRF) checks on every
 state-changing request, `SameSite=Strict` HTTP-only session cookies, `no-store` on
 authenticated responses, and security headers (`X-Frame-Options`, `X-Content-Type-Options`,
 `Referrer-Policy`, `Permissions-Policy`, HSTS in production).
+
+**Two-factor (TOTP).** A dependency-free RFC 6238 implementation (`lib/auth/totp.ts`):
+
+- **Admin** — set `ADMIN_TOTP_SECRET` (generate one with `npm run gen:totp`) and admin
+  login also requires a 6-digit authenticator code.
+- **Technicians** — opt-in per account at `/tech/security`: scan/enter the key, verify a
+  code to enable, and thereafter a code is required at sign-in. Disable requires a
+  current code.
+
+**Non-obvious admin path.** Set `ADMIN_BASENAME` to a secret slug (e.g. `ops-7f3a`) and
+the console is served from `/<slug>` while the literal `/admin` returns 404, so it can't
+be found by scanning. The admin's own links derive the base from the URL at runtime, so
+the slug never ships in a public bundle. **Set `ADMIN_BASENAME` at build time** — the
+rewrite is baked during `next build`, not read only at runtime.
 
 ---
 

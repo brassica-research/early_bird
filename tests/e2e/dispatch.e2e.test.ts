@@ -144,6 +144,15 @@ describe("E2E — client → tech → admin", () => {
     expect(data.technicians.length).toBe(1);
     expect(data.technicians[0].assignments.length).toBe(1);
     expect(data.stats.onDuty).toBe(1);
+
+    // Technician history: the heartbeat opened a duty session, and the job is
+    // in the tech's job history.
+    const techId = data.technicians[0].id;
+    const hist = await req("GET", `/api/admin/technician?id=${techId}`, { jar: admin });
+    expect(hist.status).toBe(200);
+    const h = await hist.json();
+    expect(h.dutySessions.length).toBeGreaterThanOrEqual(1);
+    expect(h.jobs.some((j: { id: string }) => j.id === submissionId)).toBe(true);
   });
 
   it("enforces auth and CSRF", async () => {

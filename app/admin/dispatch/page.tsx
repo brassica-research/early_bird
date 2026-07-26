@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { adminBase } from "@/lib/adminBase";
 import type { Submission } from "@/lib/types";
 
 interface TechRow {
@@ -84,6 +85,8 @@ function LocationMap({
 }
 
 export default function AdminDispatchPage() {
+  const [base, setBase] = useState("/admin");
+  useEffect(() => setBase(adminBase()), []);
   const [data, setData] = useState<DispatchData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -135,7 +138,7 @@ export default function AdminDispatchPage() {
             </p>
           </div>
           <div className="stack-actions">
-            <Link href="/admin" className="btn btn-ghost">
+            <Link href={base} className="btn btn-ghost">
               ← Dashboard
             </Link>
             <button className="btn btn-ghost" onClick={load} disabled={loading}>
@@ -191,7 +194,9 @@ export default function AdminDispatchPage() {
                   {data.technicians.map((t) => (
                     <tr key={t.id}>
                       <td data-label="Name">
-                        <strong>{t.name}</strong>
+                        <Link href={`${base}/technician/${t.id}`}>
+                          <strong>{t.name}</strong>
+                        </Link>
                       </td>
                       <td data-label="Status">
                         {t.live ? (

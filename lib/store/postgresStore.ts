@@ -10,6 +10,7 @@ import type {
   TechnicianAccount,
   PasswordResetToken,
   TechPresence,
+  DutySession,
 } from "@/lib/types";
 import { promises as fs } from "fs";
 import path from "path";
@@ -121,6 +122,15 @@ export class PostgresStore implements Store {
         tech_id TEXT PRIMARY KEY,
         data JSONB NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS duty_sessions (
+        id TEXT PRIMARY KEY,
+        tech_id TEXT NOT NULL,
+        clock_in_at TIMESTAMPTZ NOT NULL,
+        clock_out_at TIMESTAMPTZ,
+        data JSONB NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS duty_tech_idx ON duty_sessions (tech_id, clock_in_at DESC);
+      CREATE INDEX IF NOT EXISTS duty_open_idx ON duty_sessions (tech_id) WHERE clock_out_at IS NULL;
       CREATE INDEX IF NOT EXISTS charges_submission_idx
         ON charges (submission_id);
       CREATE INDEX IF NOT EXISTS submissions_dispatch_idx
@@ -357,6 +367,83 @@ export class PostgresStore implements Store {
   async listTechAccounts(): Promise<TechnicianAccount[]> {
     const res = await this.query(
       "SELECT data FROM tech_accounts ORDER BY data->>'name' ASC",
+    );
+    return res.rows.map((r: any) => r.data);
+  }
+
+  async updateTechTotp(
+    id: string,
+    totpSecret: string | null,
+    totpEnabled: boolean,
+  ): Promise<TechnicianAccount | null> {
+    const res = await this.query(
+      `UPDATE tech_accounts
+         SET data = jsonb_set(
+               jsonb_set(
+                 jsonb_set(data, '{totpSecret}', $2::jsonb, true),
+                 '{totpEnabled}', to_jsonb($3::boolean), true),
+               '{updatedAt}', to_jsonb($4::text), true)
+       WHERE id = $1
+       RETURNING data`,
+      [id, JSON.stringify(totpSecret), totpEnabled, new Date().toISOString()],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  async listAllTechJobs(techId: string): Promise<Submission[]> {
+    const res = await this.query(
+      `SELECT data FROM submissions
+       WHERE data#>>'{assignment,techId}' = $1
+       ORDER BY COALESCE(data#>>'{assignment,claimedAt}', data->>'createdAt') DESC`,
+      [techId],
+    );
+    return res.rows.map((r: any) => r.data);
+  }
+
+  // --- Duty sessions -------------------------------------------------------
+
+  async openDutySession(session: DutySession): Promise<DutySession> {
+    const existing = await this.query(
+      "SELECT data FROM duty_sessions WHERE tech_id = $1 AND clock_out_at IS NULL LIMIT 1",
+      [session.techId],
+    );
+    if (existing.rows[0]) return existing.rows[0].data;
+    await this.query(
+      `INSERT INTO duty_sessions (id, tech_id, clock_in_at, clock_out_at, data)
+       VALUES ($1, $2, $3, NULL, $4)`,
+      [session.id, session.techId, session.clockInAt, session],
+    );
+    return session;
+  }
+
+  async closeOpenDutySession(
+    techId: string,
+    clockOutAt: string,
+  ): Promise<DutySession | null> {
+    const res = await this.query(
+      `UPDATE duty_sessions
+         SET clock_out_at = $2,
+             data = jsonb_set(data, '{clockOutAt}', to_jsonb($2::text), true)
+       WHERE id = (
+         SELECT id FROM duty_sessions
+         WHERE tech_id = $1 AND clock_out_at IS NULL
+         ORDER BY clock_in_at DESC LIMIT 1
+       )
+       RETURNING data`,
+      [techId, clockOutAt],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  async listDutySessions(
+    techId: string,
+    sinceIso?: string,
+  ): Promise<DutySession[]> {
+    const res = await this.query(
+      `SELECT data FROM duty_sessions
+       WHERE tech_id = $1 AND ($2::timestamptz IS NULL OR clock_in_at >= $2)
+       ORDER BY clock_in_at DESC`,
+      [techId, sinceIso ?? null],
     );
     return res.rows.map((r: any) => r.data);
   }

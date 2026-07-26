@@ -12,6 +12,7 @@ import type {
   TechnicianAccount,
   PasswordResetToken,
   TechPresence,
+  DutySession,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,7 @@ const FILES = {
   techAccounts: "tech-accounts.json",
   resetTokens: "reset-tokens.json",
   presence: "tech-presence.json",
+  dutySessions: "duty-sessions.json",
   heuristicLive: "heuristic-config.live.json",
 } as const;
 
@@ -283,6 +285,78 @@ export class JsonFileStore implements Store {
   async listTechAccounts(): Promise<TechnicianAccount[]> {
     const all = await readJson<TechnicianAccount[]>(FILES.techAccounts, []);
     return all.slice().sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async updateTechTotp(
+    id: string,
+    totpSecret: string | null,
+    totpEnabled: boolean,
+  ): Promise<TechnicianAccount | null> {
+    return this.locked(async () => {
+      const all = await readJson<TechnicianAccount[]>(FILES.techAccounts, []);
+      const idx = all.findIndex((a) => a.id === id);
+      if (idx === -1) return null;
+      all[idx] = {
+        ...all[idx],
+        totpSecret,
+        totpEnabled,
+        updatedAt: new Date().toISOString(),
+      };
+      await writeJson(FILES.techAccounts, all);
+      return all[idx];
+    });
+  }
+
+  async listAllTechJobs(techId: string): Promise<Submission[]> {
+    const all = await readJson<Submission[]>(FILES.submissions, []);
+    return all
+      .filter((s) => s.assignment?.techId === techId)
+      .sort((a, b) =>
+        (b.assignment?.claimedAt ?? b.createdAt).localeCompare(
+          a.assignment?.claimedAt ?? a.createdAt,
+        ),
+      );
+  }
+
+  // --- Duty sessions -------------------------------------------------------
+
+  async openDutySession(session: DutySession): Promise<DutySession> {
+    return this.locked(async () => {
+      const all = await readJson<DutySession[]>(FILES.dutySessions, []);
+      const open = all.find(
+        (s) => s.techId === session.techId && s.clockOutAt === null,
+      );
+      if (open) return open;
+      all.push(session);
+      await writeJson(FILES.dutySessions, all);
+      return session;
+    });
+  }
+
+  async closeOpenDutySession(
+    techId: string,
+    clockOutAt: string,
+  ): Promise<DutySession | null> {
+    return this.locked(async () => {
+      const all = await readJson<DutySession[]>(FILES.dutySessions, []);
+      const idx = all.findIndex(
+        (s) => s.techId === techId && s.clockOutAt === null,
+      );
+      if (idx === -1) return null;
+      all[idx] = { ...all[idx], clockOutAt };
+      await writeJson(FILES.dutySessions, all);
+      return all[idx];
+    });
+  }
+
+  async listDutySessions(
+    techId: string,
+    sinceIso?: string,
+  ): Promise<DutySession[]> {
+    const all = await readJson<DutySession[]>(FILES.dutySessions, []);
+    return all
+      .filter((s) => s.techId === techId && (!sinceIso || s.clockInAt >= sinceIso))
+      .sort((a, b) => b.clockInAt.localeCompare(a.clockInAt));
   }
 
   // --- Technician presence -------------------------------------------------

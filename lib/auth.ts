@@ -36,6 +36,16 @@ export function isAdminConfigured(): boolean {
   return getAdminPassword() !== null;
 }
 
+/** Admin second-factor (TOTP) secret, if a second factor is configured. */
+export function getAdminTotpSecret(): string | null {
+  const s = process.env.ADMIN_TOTP_SECRET;
+  return s && s.length > 0 ? s : null;
+}
+
+export function isAdminTotpEnabled(): boolean {
+  return getAdminTotpSecret() !== null;
+}
+
 /** Technician passcode gate — same signed-cookie scheme as admin. */
 export function getTechSecret(): string | null {
   const explicit = process.env.TECH_SESSION_SECRET;
