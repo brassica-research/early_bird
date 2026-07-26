@@ -158,15 +158,16 @@ STORE_DRIVER=json       # default — local JSON files under ./data (dev / MVP)
 STORE_DRIVER=postgres   # hosted Postgres (Vercel Postgres / Neon / Supabase)
 ```
 
-To migrate to Postgres:
+To migrate to Postgres (the "flip of a switch"):
 
-1. `npm install pg`
-2. Set `STORE_DRIVER=postgres` and `DATABASE_URL=postgres://…`
-3. Deploy. `init()` creates the tables and seeds the heuristic config on first run.
+1. Set `STORE_DRIVER=postgres` and `DATABASE_URL=postgres://…`
+2. Deploy. `init()` creates the tables and seeds the heuristic config on first run.
 
-The Postgres driver (`lib/store/postgresStore.ts`) implements the exact same contract
-as the JSON driver, including atomic slot reservation via a conditional `UPDATE`. `pg`
-is imported lazily, so it isn't required in JSON mode.
+`pg` ships as a dependency, so no extra install is needed — this is the driver you want
+on serverless hosts (e.g. Vercel), whose filesystem is read-only and can't back the JSON
+store. The Postgres driver (`lib/store/postgresStore.ts`) implements the exact same
+contract as the JSON driver, including atomic slot reservation via a conditional `UPDATE`.
+`pg` is imported lazily, so JSON mode never opens a connection.
 
 ---
 

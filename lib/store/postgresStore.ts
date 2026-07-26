@@ -19,14 +19,14 @@ import path from "path";
 // Postgres store — the "flip of a switch" production driver.
 //
 // To activate:
-//   1. `npm install pg`
-//   2. Set STORE_DRIVER=postgres and DATABASE_URL=postgres://...
-//      (Vercel Postgres, Neon, and Supabase all provide a compatible URL.)
+//   Set STORE_DRIVER=postgres and DATABASE_URL=postgres://...
+//   (Vercel Postgres, Neon, and Supabase all provide a compatible URL.)
 //
-// `pg` is imported dynamically via a variable specifier so it is NOT a hard
-// dependency of the JSON-mode app: the module is only resolved when this
-// driver is actually instantiated. Everything below implements the exact same
-// Store contract as the JSON driver, so no calling code changes.
+// `pg` ships as a dependency but is imported dynamically via a variable
+// specifier, so JSON mode never opens a connection: the module is only
+// resolved when this driver is actually instantiated. Everything below
+// implements the exact same Store contract as the JSON driver, so no calling
+// code changes.
 // ---------------------------------------------------------------------------
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -42,7 +42,8 @@ async function loadPg(): Promise<any> {
     return await import(/* webpackIgnore: true */ moduleName);
   } catch {
     throw new Error(
-      "STORE_DRIVER=postgres requires the `pg` package. Run `npm install pg`.",
+      "STORE_DRIVER=postgres could not load the `pg` package (it ships as a " +
+        "dependency — run `npm install` to restore it).",
     );
   }
 }
