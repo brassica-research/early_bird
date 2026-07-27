@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { SERVICES } from "@/lib/services";
+import { detectSafety } from "@/lib/safety";
 import type { Submission, Slot, TriageResult } from "@/lib/types";
 
 type Step = "form" | "triage" | "done";
@@ -66,6 +67,8 @@ export default function IntakePage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [description, setDescription] = useState("");
+  const [clientUrgency, setClientUrgency] = useState<string>("");
+  const [smsOptIn, setSmsOptIn] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +81,9 @@ export default function IntakePage() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
   const [confirmedSlot, setConfirmedSlot] = useState<Slot | null>(null);
+
+  // Live emergency scan of what the customer has entered so far.
+  const safety = detectSafety(`${description} ${selectedItems.join(" ")}`);
 
   // Group availability by day so the customer picks a day first, then a window
   // — instead of scrolling two weeks of slots at once (especially on mobile).
@@ -140,6 +146,8 @@ export default function IntakePage() {
           address,
           affectedServices: buildAffectedServices(),
           description,
+          ...(clientUrgency ? { clientUrgency } : {}),
+          smsOptIn,
         }),
       });
       const data = await res.json();
@@ -331,7 +339,7 @@ export default function IntakePage() {
                 ))}
               </div>
 
-              <div className="form-field" style={{ marginBottom: 0 }}>
+              <div className="form-field">
                 <label htmlFor="desc">
                   Description of the issue / request
                 </label>
@@ -347,7 +355,77 @@ export default function IntakePage() {
                     {fieldErrors.description[0]}
                   </div>
                 )}
+                {safety.triggered && (
+                  <div className="emergency-banner" role="alert">
+                    <span className="eb-icon" aria-hidden="true">
+                      ⚠
+                    </span>
+                    <div>
+                      <strong>
+                        If this is an emergency or you’re in danger, call 911
+                        now.
+                      </strong>
+                      <p>
+                        This may describe {safety.labels.join(" / ")}. Early Bird
+                        technicians are not emergency responders.
+                        {safety.codes.includes("gas") &&
+                          " For a suspected gas leak, leave the building and call your gas utility or 911 before doing anything else."}
+                        {safety.codes.includes("fire") &&
+                          " If there is a fire, get everyone out and call 911."}{" "}
+                        Some situations require a licensed professional — please
+                        get to safety first.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
+
+              <div className="form-field">
+                <label>
+                  How urgent is this?{" "}
+                  <span className="hint">— helps us prioritize</span>
+                </label>
+                <div className="chips">
+                  {[
+                    { v: "emergency", label: "Emergency" },
+                    { v: "high", label: "Today" },
+                    { v: "normal", label: "This week" },
+                    { v: "low", label: "Whenever" },
+                  ].map((o) => (
+                    <span
+                      key={o.v}
+                      className="chip"
+                      data-on={clientUrgency === o.v}
+                      role="button"
+                      aria-pressed={clientUrgency === o.v}
+                      tabIndex={0}
+                      onClick={() =>
+                        setClientUrgency(clientUrgency === o.v ? "" : o.v)
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setClientUrgency(clientUrgency === o.v ? "" : o.v);
+                        }
+                      }}
+                    >
+                      {o.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <label className="check-row" style={{ marginBottom: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={smsOptIn}
+                  onChange={(e) => setSmsOptIn(e.target.checked)}
+                />
+                <span>
+                  Text me updates at this number (e.g. when a technician is
+                  assigned). Message &amp; data rates may apply.
+                </span>
+              </label>
             </div>
 
             <div className="form-actions" style={{ marginTop: 20 }}>

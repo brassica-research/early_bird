@@ -12,6 +12,7 @@
 // ---------------------------------------------------------------------------
 
 export const ADMIN_COOKIE = "eb_admin";
+export const TECH_COOKIE = "eb_tech";
 const DEFAULT_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 const encoder = new TextEncoder();
@@ -35,8 +36,36 @@ export function isAdminConfigured(): boolean {
   return getAdminPassword() !== null;
 }
 
-function toBase64Url(bytes: ArrayBuffer): string {
-  const arr = new Uint8Array(bytes);
+/** Admin second-factor (TOTP) secret, if a second factor is configured. */
+export function getAdminTotpSecret(): string | null {
+  const s = process.env.ADMIN_TOTP_SECRET;
+  return s && s.length > 0 ? s : null;
+}
+
+export function isAdminTotpEnabled(): boolean {
+  return getAdminTotpSecret() !== null;
+}
+
+/** Technician passcode gate — same signed-cookie scheme as admin. */
+export function getTechSecret(): string | null {
+  const explicit = process.env.TECH_SESSION_SECRET;
+  if (explicit && explicit.length > 0) return explicit;
+  const pc = process.env.TECH_PASSCODE;
+  if (pc && pc.length > 0) return `derived-tech:${pc}`;
+  return null;
+}
+
+export function getTechPasscode(): string | null {
+  const pc = process.env.TECH_PASSCODE;
+  return pc && pc.length > 0 ? pc : null;
+}
+
+export function isTechConfigured(): boolean {
+  return getTechPasscode() !== null;
+}
+
+function toBase64Url(bytes: ArrayBuffer | Uint8Array): string {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   let bin = "";
   for (const b of arr) bin += String.fromCharCode(b);
   return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -61,16 +90,63 @@ async function importKey(secret: string): Promise<CryptoKey> {
   );
 }
 
-/** Create a signed session token that expires `ttlMs` from now. */
+/**
+ * Create a signed session token that expires `ttlMs` from now, optionally
+ * carrying a `subject` claim (e.g. the technician's account id). The subject is
+ * part of the signed payload, so it can't be forged or altered by the client.
+ * Payload format: `<exp>|<subjectB64>` (neither part contains a dot).
+ */
 export async function createSessionToken(
   secret: string,
+  subject: string = "",
   ttlMs: number = DEFAULT_TTL_MS,
 ): Promise<string> {
   const exp = Date.now() + ttlMs;
-  const payload = String(exp);
+  const payload = `${exp}|${toBase64Url(encoder.encode(subject))}`;
   const key = await importKey(secret);
   const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
   return `${payload}.${toBase64Url(sig)}`;
+}
+
+async function parseSession(
+  secret: string,
+  token: string | undefined,
+): Promise<{ subject: string } | null> {
+  if (!token) return null;
+  const dot = token.indexOf(".");
+  if (dot === -1) return null;
+  const payload = token.slice(0, dot);
+  const sigPart = token.slice(dot + 1);
+
+  const bar = payload.indexOf("|");
+  const expStr = bar === -1 ? payload : payload.slice(0, bar);
+  const subjectB64 = bar === -1 ? "" : payload.slice(bar + 1);
+
+  const exp = Number(expStr);
+  if (!Number.isFinite(exp) || exp < Date.now()) return null;
+
+  let sigBytes: Uint8Array<ArrayBuffer>;
+  try {
+    sigBytes = fromBase64Url(sigPart);
+  } catch {
+    return null;
+  }
+  const key = await importKey(secret);
+  const valid = await crypto.subtle.verify(
+    "HMAC",
+    key,
+    sigBytes,
+    encoder.encode(payload),
+  );
+  if (!valid) return null;
+
+  let subject = "";
+  try {
+    subject = new TextDecoder().decode(fromBase64Url(subjectB64));
+  } catch {
+    subject = "";
+  }
+  return { subject };
 }
 
 /** Verify a session token's signature and expiry. */
@@ -78,24 +154,16 @@ export async function verifySessionToken(
   secret: string,
   token: string | undefined,
 ): Promise<boolean> {
-  if (!token) return false;
-  const dot = token.indexOf(".");
-  if (dot === -1) return false;
-  const payload = token.slice(0, dot);
-  const sigPart = token.slice(dot + 1);
+  return (await parseSession(secret, token)) !== null;
+}
 
-  const exp = Number(payload);
-  if (!Number.isFinite(exp) || exp < Date.now()) return false;
-
-  let sigBytes: Uint8Array<ArrayBuffer>;
-  try {
-    sigBytes = fromBase64Url(sigPart);
-  } catch {
-    return false;
-  }
-  const key = await importKey(secret);
-  // crypto.subtle.verify is constant-time internally.
-  return crypto.subtle.verify("HMAC", key, sigBytes, encoder.encode(payload));
+/** Return the token's subject claim (e.g. tech id), or null if invalid. */
+export async function readSessionSubject(
+  secret: string,
+  token: string | undefined,
+): Promise<string | null> {
+  const s = await parseSession(secret, token);
+  return s ? s.subject : null;
 }
 
 /** Constant-time-ish string comparison for the password check. */

@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { adminBase } from "@/lib/adminBase";
 import type { Submission, FeedbackRecord } from "@/lib/types";
 import type { HeuristicConfig } from "@/lib/store/types";
 
@@ -41,6 +43,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 export default function AdminPage() {
   const router = useRouter();
+  const [base, setBase] = useState("/admin");
+  useEffect(() => setBase(adminBase()), []);
   const [config, setConfig] = useState<HeuristicConfig | null>(null);
   const [pending, setPending] = useState<PendingProposal[]>([]);
   const [stats, setStats] = useState<FeedbackStats | null>(null);
@@ -95,7 +99,7 @@ export default function AdminPage() {
 
   async function logout() {
     await fetch("/api/admin/logout", { method: "POST" });
-    router.push("/admin/login");
+    router.push(`${base}/login`);
     router.refresh();
   }
 
@@ -124,6 +128,9 @@ export default function AdminPage() {
             </p>
           </div>
           <div className="stack-actions">
+            <Link href={`${base}/dispatch`} className="btn btn-primary">
+              Dispatch board →
+            </Link>
             <button className="btn btn-ghost" onClick={load} disabled={loading}>
               {loading ? "Refreshing…" : "Refresh"}
             </button>

@@ -50,6 +50,60 @@ rule-based heuristic.
 
 ---
 
+## Running the three sides locally
+
+All three run in the same app. Set a couple of env vars in `.env.local`, start the
+server, and open each surface:
+
+```bash
+# .env.local (minimum to exercise all three sides locally)
+ADMIN_PASSWORD=change-me-admin      # unlocks the admin side
+TECH_PASSCODE=change-me-invite      # invite code to create technician accounts
+# optional: ANTHROPIC_API_KEY, RESEND_API_KEY, TWILIO_*, GEOCODER, STRIPE_* …
+npm run dev
+```
+
+| Side | URL | How to use |
+| --- | --- | --- |
+| **Client** | `/` and `/intake` | Describe an issue → triage → pick a slot → book. No auth. |
+| **Technician** | `/tech` | First visit `/tech/register`, enter the `TECH_PASSCODE` invite code + your details. Then go on duty (allow location), work the queue, claim a job, commit an ETA, record a charge. Password reset at `/tech/forgot`. |
+| **Admin** | `/admin` and `/admin/dispatch` | Sign in with `ADMIN_PASSWORD`. Dashboard shows submissions + the triage feedback loop; **Dispatch board** shows the live queue, technicians (on-duty/location/assignments), and the map. |
+
+In dev, emails and SMS print to the **server console** unless `RESEND_API_KEY` /
+`TWILIO_*` are set — including the technician password-reset link.
+
+## Testing
+
+```bash
+npm test         # unit + integration + API-handler tests (fast, hermetic)
+npm run test:e2e # end-to-end HTTP flow (builds first via test:all, or run `npm run build`)
+npm run test:all # test → build → e2e (what CI runs)
+npm run test:watch
+```
+
+Tests are **hermetic** — no network or API keys required. Geocoding is disabled and the
+breach-password check degrades gracefully, so the suite is deterministic offline. Each
+test runs against an isolated JSON data dir (`.test-data` / `.e2e-data`).
+
+Coverage spans all three sides:
+
+- **Client** — intake validation + `POST /api/intake` (creates a queued job), triage
+  heuristic (classification, urgency, safety/scope flags), slot generation & booking.
+- **Technician** — password hashing (scrypt) + policy, account register/login, the
+  OWASP reset flow (single-use token, old password invalidated), atomic **claim (only
+  one wins)**, ETA + customer notification, billing (manual provider).
+- **Admin** — dispatch aggregation (queue + technicians + presence), session tokens,
+  rate limiting, and CSRF/same-origin checks.
+- **End-to-end** (`tests/e2e`) spawns the built server and runs the whole cross-side
+  path over HTTP with real cookies/middleware: register → intake → queue → claim →
+  409 on a second claim → ETA → charge → heartbeat → admin board → auth 401 → CSRF 403
+  → password reset.
+
+CI (`.github/workflows/ci.yml`) runs type-check → build → `npm test` → `npm run test:e2e`
+on every push and PR.
+
+---
+
 ## How triage works (LLM-primary, self-improving heuristic)
 
 Every intake runs through **two** engines:
@@ -104,15 +158,16 @@ STORE_DRIVER=json       # default — local JSON files under ./data (dev / MVP)
 STORE_DRIVER=postgres   # hosted Postgres (Vercel Postgres / Neon / Supabase)
 ```
 
-To migrate to Postgres:
+To migrate to Postgres (the "flip of a switch"):
 
-1. `npm install pg`
-2. Set `STORE_DRIVER=postgres` and `DATABASE_URL=postgres://…`
-3. Deploy. `init()` creates the tables and seeds the heuristic config on first run.
+1. Set `STORE_DRIVER=postgres` and `DATABASE_URL=postgres://…`
+2. Deploy. `init()` creates the tables and seeds the heuristic config on first run.
 
-The Postgres driver (`lib/store/postgresStore.ts`) implements the exact same contract
-as the JSON driver, including atomic slot reservation via a conditional `UPDATE`. `pg`
-is imported lazily, so it isn't required in JSON mode.
+`pg` ships as a dependency, so no extra install is needed — this is the driver you want
+on serverless hosts (e.g. Vercel), whose filesystem is read-only and can't back the JSON
+store. The Postgres driver (`lib/store/postgresStore.ts`) implements the exact same
+contract as the JSON driver, including atomic slot reservation via a conditional `UPDATE`.
+`pg` is imported lazily, so JSON mode never opens a connection.
 
 ---
 
@@ -158,11 +213,74 @@ providers (SendGrid/Postmark/SES/SMTP) is a single branch in `lib/notify/email.t
 
 ---
 
+## Technician dispatch (`/tech`)
+
+A mobile-first technician app (shares the same API; a native app can consume the same
+routes later). Requires `TECH_PASSCODE` — the **invite code** for creating accounts.
+
+- **Accounts + reset** (`lib/tech-auth.ts`, `lib/auth/*`): per-technician accounts,
+  gated at sign-up by the invite code. Passwords are **scrypt**-hashed and screened
+  against known-breached passwords (local list + HIBP k-anonymity); policy follows
+  **NIST 800-63B** (length-first, no composition rules). **Forgot-password** follows
+  the **OWASP** guidance: single-use, hashed, time-limited (30 min) tokens emailed out
+  of band; no account-existence disclosure. Sessions are **bound to the tech id** in
+  the signed cookie, so a caller can only ever act as themselves.
+- **Live queue**: every submission enters the queue. Technicians sort by **recency**,
+  **client-reported urgency**, or **proximity** (browser geolocation + geocoded job
+  addresses, haversine). Contact PII is withheld until a job is claimed.
+- **Claim-to-lock**: `claimJob` is atomic in both store drivers (a conditional update
+  guarded on `dispatchStatus = 'queued'`), so two technicians can never claim the same
+  job — the loser gets a 409 and the queue updates live for everyone (polling).
+- **Committed ETA** in 30-minute increments → the customer is notified a technician is
+  assigned, by **email** and (if they opted in) **SMS**.
+- **Billing** (`lib/payments/*`): technicians record charges against a job through a
+  provider abstraction — **manual ledger** by default, **Stripe**-ready by setting
+  `PAYMENTS_PROVIDER=stripe` (+ `npm i stripe`, `STRIPE_SECRET_KEY`).
+- **Presence**: on-duty technicians heartbeat their status + location, feeding the
+  admin board.
+
+## Admin dispatch board (`/admin/dispatch`)
+
+The owner's live operational picture: all queued jobs (full detail), every technician
+with on-duty status / last-seen / location and current assignments, and a **map** of
+technician (and geocoded job) locations. The map is a self-contained SVG plot — swap in
+Leaflet/Mapbox for a street basemap; the data is already lat/lng.
+
+**Technician history** — each technician on the board links to a detail view
+(`/admin/technician/[id]`) showing their **duty history** (clock-in/out sessions with
+durations, retained up to **5 years**) and **every job they've worked** with full
+details. Duty sessions are logged automatically from the on-duty/off-duty heartbeats.
+
+## Portal security
+
+Both staff portals are hardened (`lib/security.ts`, `middleware.ts`, `next.config.js`):
+rate-limited logins with exponential backoff, same-origin (CSRF) checks on every
+state-changing request, `SameSite=Strict` HTTP-only session cookies, `no-store` on
+authenticated responses, and security headers (`X-Frame-Options`, `X-Content-Type-Options`,
+`Referrer-Policy`, `Permissions-Policy`, HSTS in production).
+
+**Two-factor (TOTP).** A dependency-free RFC 6238 implementation (`lib/auth/totp.ts`):
+
+- **Admin** — set `ADMIN_TOTP_SECRET` (generate one with `npm run gen:totp`) and admin
+  login also requires a 6-digit authenticator code.
+- **Technicians** — opt-in per account at `/tech/security`: scan/enter the key, verify a
+  code to enable, and thereafter a code is required at sign-in. Disable requires a
+  current code.
+
+**Non-obvious admin path.** Set `ADMIN_BASENAME` to a secret slug (e.g. `ops-7f3a`) and
+the console is served from `/<slug>` while the literal `/admin` returns 404, so it can't
+be found by scanning. The admin's own links derive the base from the URL at runtime, so
+the slug never ships in a public bundle. **Set `ADMIN_BASENAME` at build time** — the
+rewrite is baked during `next build`, not read only at runtime.
+
+---
+
 ## Environment variables
 
 See `.env.example`. Key ones: `ANTHROPIC_API_KEY`, `TRIAGE_MODEL` (default
-`claude-sonnet-5`), `STORE_DRIVER`, `DATABASE_URL`, `HEURISTIC_AUTO_APPLY`,
-`AUTO_APPLY_THRESHOLD`.
+`claude-sonnet-5`), `STORE_DRIVER`, `DATABASE_URL`; technician portal
+`TECH_PASSCODE`/`TECH_SESSION_SECRET`; `GEOCODER`; SMS `TWILIO_*`; billing
+`PAYMENTS_PROVIDER`/`STRIPE_SECRET_KEY`; email `RESEND_API_KEY`/`EMAIL_FROM`/`EMAIL_OPS`.
 
 ## Deploying to Vercel
 
@@ -172,9 +290,13 @@ filesystem, which is ephemeral on serverless).
 
 ## Notes / next steps
 
-- Email confirmations are wired (Resend + console fallback). SMS is a natural next
-  add — same `lib/notify` pattern.
-- A future mobile **app** can consume the same `/api/*` routes; the domain types in
+- Email + opt-in SMS are wired (Resend / Twilio, each with a console fallback).
+- A native mobile **app** can consume the same `/api/*` routes; the domain types in
   `lib/types.ts` are the shared contract.
-- `/admin` is gated by a shared password. For multiple operators, swap the
-  single-password scheme in `lib/auth.ts` for a real identity provider.
+- The live queue and dispatch board update via polling; swap to SSE/WebSockets for
+  instant push if desired.
+- The rate limiter is per-process (fine for one instance); back it with Redis for a
+  multi-instance deployment. `PAYMENTS_PROVIDER=stripe` and a Stripe key light up
+  real charges; the dispatch map can take a Leaflet/Mapbox basemap.
+- The customer slot-booking and the on-demand dispatch queue currently coexist — a
+  future pass could converge them (urgent jobs → dispatch, scheduled → slots).
