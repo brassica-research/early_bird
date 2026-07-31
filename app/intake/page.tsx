@@ -127,6 +127,12 @@ export default function IntakePage() {
   // Live issue-scope match from what they've described + selected.
   const issueScope = assessIssue(`${description} ${selectedItems.join(" ")}`);
 
+  // Call-center number for the tap-to-call CTA (mobile). Configurable so it can
+  // point at the real line without a code change.
+  const supportPhone =
+    process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+1 (800) 555-0100";
+  const telHref = `tel:${supportPhone.replace(/[^\d+]/g, "")}`;
+
   // Group availability by day so the customer picks a day first, then a window
   // — instead of scrolling two weeks of slots at once (especially on mobile).
   const dayGroups = result ? groupSlotsByDay(result.availability) : [];
@@ -262,6 +268,17 @@ export default function IntakePage() {
             <p className="muted" style={{ marginTop: 0 }}>
               A few details and a description — we’ll triage it instantly.
             </p>
+
+            <div className="call-cta">
+              <p className="call-cta-label">Rather talk to a person?</p>
+              <a
+                className="btn btn-call"
+                href={telHref}
+                aria-label={`Call Early Bird at ${supportPhone}`}
+              >
+                <span aria-hidden="true">📞</span> Talk to a Tech Now
+              </a>
+            </div>
 
             <div className="card" style={{ padding: 22, marginTop: 20 }}>
               <div className="grid cols-2">

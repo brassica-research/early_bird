@@ -242,6 +242,38 @@ a {
   background: var(--surface-3);
 }
 
+/* --- Tap-to-call CTA (mobile intake only) --- */
+.call-cta {
+  display: none; /* shown on mobile only (see breakpoint below) */
+  flex-direction: column;
+  gap: 8px;
+  margin: 18px 0 4px;
+  text-align: center;
+}
+.call-cta-label {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+.btn-call {
+  width: 100%;
+  font-size: 1.12rem;
+  font-weight: 800;
+  padding: 16px 20px;
+  color: #fff;
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: var(--shadow);
+}
+.btn-call:hover:not(:disabled) {
+  box-shadow: var(--shadow-lg);
+}
+@media (max-width: 760px) {
+  .call-cta {
+    display: flex;
+  }
+}
+
 /* --- Cards & sections --- */
 .card {
   background: var(--surface);
