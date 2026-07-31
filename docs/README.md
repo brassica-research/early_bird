@@ -45,20 +45,17 @@ expand the query only) and returns a scope verdict:
 
 ### How it's wired into the app
 
-The intake form (`app/intake/page.tsx`) reads this data through
-`lib/licensing.ts`:
+State licensing is an **internal** signal only — it is **not shown to the
+customer**. The call-center team triages each booking and dispositions it to the
+appropriate technician or licensed pro. `lib/licensing.ts` powers this:
 
-- The customer picks their **State** (auto-detected from the address when
-  possible). As soon as a regulated trade (plumbing / electrical / HVAC) is
-  selected, a **live licensing advisory** appears — mirroring the emergency
-  safety banner's "err toward disclosure" posture. It's **advisory only and
-  never blocks a booking**.
-- On submit, the server (`app/api/intake/route.ts`) recomputes the assessment
-  for the triaged trade and persists it on the submission
-  (`submission.licensing`).
+- The intake form captures the customer's **State** (auto-detected from the
+  address when possible) purely for routing — no licensing language is shown.
+- On submit, the server (`app/api/intake/route.ts`) computes the assessment for
+  the triaged trade and persists it on the submission (`submission.licensing`).
 - The admin **Dispatch board** shows a **"Licensed pro"** badge on any queued
-  job whose state routes the work to a licensed partner, so the operator can
-  route accordingly.
+  job whose state routes the work to a licensed partner, so the call-center /
+  operator can disposition accordingly.
 
 Appliances, basic repair, and internet/connectivity carry the lightest
 regulatory burden nationwide and are treated as having no state-trade gate.

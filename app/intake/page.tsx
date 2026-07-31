@@ -4,12 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { SERVICES } from "@/lib/services";
 import { detectSafety } from "@/lib/safety";
-import {
-  STATES,
-  assessLicensing,
-  parseStateFromAddress,
-  type LicensingAssessment,
-} from "@/lib/licensing";
+import { STATES, parseStateFromAddress } from "@/lib/licensing";
 import { assessIssue, type IssueAssessment } from "@/lib/issues";
 import type { Submission, Slot, TriageResult } from "@/lib/types";
 
@@ -32,48 +27,6 @@ function UrgencyBadge({ urgency }: { urgency: string }) {
     <span className={`badge ${URGENCY_BADGE[urgency] || "badge-normal"}`}>
       {urgency.toUpperCase()}
     </span>
-  );
-}
-
-// State licensing advisory — informational, never blocking. Mirrors the safety
-// banner's "err toward disclosure" posture: electrical/plumbing/HVAC are
-// confirm-before-offer, so we tell the customer up front when their state
-// routes the work to a licensed pro.
-function LicensingAdvisory({
-  licensing,
-}: {
-  licensing: LicensingAssessment | null;
-}) {
-  if (!licensing || licensing.trades.length === 0) return null;
-  const needsPro = licensing.requiresLicensedPro;
-  return (
-    <div
-      className={`alert ${needsPro ? "alert-warn" : "alert-ok"}`}
-      style={{ marginTop: 12 }}
-    >
-      <strong>
-        Licensing in {licensing.stateName}
-        {needsPro ? " — some work routes to a licensed pro" : " — good to go"}
-      </strong>
-      <ul className="clean" style={{ marginBottom: needsPro ? 6 : 0 }}>
-        {licensing.trades.map((t) => (
-          <li key={t.trade}>
-            {t.requiresLicensedPro && (
-              <span className="badge badge-high" style={{ marginRight: 6 }}>
-                Licensed pro
-              </span>
-            )}
-            {t.message}
-          </li>
-        ))}
-      </ul>
-      {needsPro && (
-        <p className="muted" style={{ fontSize: "0.8rem", margin: 0 }}>
-          You can still book — we’ll diagnose on-site and hand off licensed work
-          to a vetted partner. Not legal advice.
-        </p>
-      )}
-    </div>
   );
 }
 
@@ -171,12 +124,8 @@ export default function IntakePage() {
   const safety = detectSafety(`${description} ${selectedItems.join(" ")}`);
 
   // Resolve the state: explicit pick wins, else best-effort from the address.
+  // Captured for internal routing/disposition only (not shown to the customer).
   const effectiveState = stateCode || parseStateFromAddress(address) || "";
-  // Live licensing advisory for the selected trades in that state.
-  const licensing =
-    effectiveState && selectedCategories.length
-      ? assessLicensing(effectiveState, selectedCategories)
-      : null;
   // Live issue-scope match from what they've described + selected.
   const issueScope = assessIssue(`${description} ${selectedItems.join(" ")}`);
 
@@ -374,7 +323,7 @@ export default function IntakePage() {
                 <div className="form-field">
                   <label htmlFor="state">
                     State{" "}
-                    <span className="hint">— sets licensing rules</span>
+                    <span className="hint">— helps us route your visit</span>
                   </label>
                   <select
                     id="state"
@@ -451,8 +400,6 @@ export default function IntakePage() {
                     </div>
                   </div>
                 ))}
-
-                <LicensingAdvisory licensing={licensing} />
               </div>
 
               <div className="form-field">
@@ -603,7 +550,6 @@ export default function IntakePage() {
               <IssueScopeAdvisory
                 a={result.submission.issueAssessment ?? null}
               />
-              <LicensingAdvisory licensing={result.submission.licensing ?? null} />
 
               {triage.troubleshootingSteps.length > 0 && (
                 <div style={{ marginTop: 8 }}>
