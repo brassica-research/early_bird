@@ -221,9 +221,11 @@ routes later). Requires `TECH_PASSCODE` — the **invite code** for creating acc
 - **Accounts + reset** (`lib/tech-auth.ts`, `lib/auth/*`): per-technician accounts,
   gated at sign-up by the invite code. Passwords are **scrypt**-hashed and screened
   against known-breached passwords (local list + HIBP k-anonymity); policy follows
-  **NIST 800-63B** (length-first, no composition rules). **Forgot-password** follows
-  the **OWASP** guidance: single-use, hashed, time-limited (30 min) tokens emailed out
-  of band; no account-existence disclosure. Sessions are **bound to the tech id** in
+  **NIST 800-63B** (length-first, no composition rules). For local testing you can set
+  `AUTH_PASSWORD_POLICY=relaxed` to allow short, simple passwords (4+ chars, no blocklist
+  or breach check) — leave it `strict` (the default) in production. **Forgot-password**
+  follows the **OWASP** guidance: single-use, hashed, time-limited (30 min) tokens emailed
+  out of band; no account-existence disclosure. Sessions are **bound to the tech id** in
   the signed cookie, so a caller can only ever act as themselves.
 - **Live queue**: every submission enters the queue. Technicians sort by **recency**,
   **client-reported urgency**, or **proximity** (browser geolocation + geocoded job
