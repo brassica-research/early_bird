@@ -51,9 +51,7 @@ function IssueScopeAdvisory({ a }: { a: IssueAssessment | null }) {
   const label =
     a.scope === "in_scope"
       ? "We can typically handle this"
-      : a.requiresLicensedPro
-        ? "We’ll diagnose, then refer"
-        : "We’ll take a look on-site";
+      : "We’ll assess this on-site";
   return (
     <div
       className={`alert ${a.scope === "in_scope" ? "alert-ok" : "alert-warn"}`}
@@ -524,7 +522,7 @@ export default function IntakePage() {
                 {triage.withinNonLicensedScope ? (
                   <span className="badge badge-ok">In scope</span>
                 ) : (
-                  <span className="badge badge-high">Needs licensed pro</span>
+                  <span className="badge badge-normal">We’ll assess on-site</span>
                 )}
               </div>
               <div

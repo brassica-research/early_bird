@@ -182,26 +182,26 @@ export interface IssueAssessment {
   alsoMatched: MatrixIssue[];
 }
 
+// Customer-facing copy is deliberately neutral — it never mentions licensing or
+// referrals. Our call-center team triages every booking and dispositions it to
+// the appropriate technician or licensed pro internally. Safety framing on hard
+// stops stays, since that's a warning to the customer, not a disposition.
 function messageFor(issue: MatrixIssue): string {
   const q = `“${issue.issue}”`;
   if (issue.hardStop) {
-    return `${q} is a safety hard-stop — please don’t attempt it. We’ll diagnose safely and refer you to the right licensed professional immediately.`;
+    return `${q} is a safety hard-stop — please don’t attempt it yourself. Our team will make sure it’s handled safely.`;
   }
   switch (issue.scope) {
     case "in_scope":
       return `${q} is typically something an Early Bird technician can handle on-site.`;
     case "partial":
-      return `We can get started on ${q}, but part of the work may need a licensed pro — the technician will advise on-site.`;
+      return `Our technician will assess ${q} on-site and advise on next steps.`;
     case "grey":
-      return `We’ll diagnose ${q} on-site; the repair itself may depend on local licensing, so the technician will confirm what we can do.`;
+      return `Our technician will take a look at ${q} on-site and advise on the best way to handle it.`;
     case "out_of_scope":
-      return `${q} is licensed work${
-        issue.license && issue.license !== "None"
-          ? ` (${issue.license})`
-          : ""
-      } — we’ll diagnose it and refer you to a vetted licensed pro.`;
+      return `Our technician will assess ${q} on-site and advise on next steps.`;
     case "emergency":
-      return `${q} needs urgent attention — we’ll help you stop the damage and refer you to a licensed pro right away.`;
+      return `${q} needs prompt attention — our team will make sure it’s handled quickly and safely.`;
   }
 }
 

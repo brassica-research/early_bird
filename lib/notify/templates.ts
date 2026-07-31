@@ -67,7 +67,7 @@ export function bookingConfirmationEmail(
   const when = formatWhen(slot);
   const scopeNote = triage.withinNonLicensedScope
     ? ""
-    : `<div style="margin-top:12px;padding:12px;border-radius:9px;background:#fdf3e2;color:#7c4a03;">Heads up: part of your request may need a licensed professional. Our technician will assess on-site and advise.</div>`;
+    : `<div style="margin-top:12px;padding:12px;border-radius:9px;background:#fdf3e2;color:#7c4a03;">Our technician will assess your request on-site and advise on next steps.</div>`;
 
   const html = layout(
     "You’re booked — see you soon! 🌅",
@@ -90,7 +90,7 @@ When: ${when}
 Where: ${input.address}
 Issue: ${triage.categoryLabel} (${triage.urgency})
 Estimated on-site time: ~${triage.estimatedDurationMin} min
-${triage.withinNonLicensedScope ? "" : "\nNote: part of your request may need a licensed professional; our technician will assess on-site.\n"}${issueNoteText(submission)}
+${triage.withinNonLicensedScope ? "" : "\nOur technician will assess your request on-site and advise on next steps.\n"}${issueNoteText(submission)}
 Reference: ${submission.id}
 Need to change or cancel? Just reply to this email.`;
 
