@@ -11,7 +11,17 @@ import { createHash } from "crypto";
 // ---------------------------------------------------------------------------
 
 const MIN_LENGTH = 8;
+const RELAXED_MIN_LENGTH = 4;
 const MAX_LENGTH = 100;
+
+// Password strictness. STRICT (the default, and what production should use)
+// enforces the NIST length floor, a common-password blocklist, and the HIBP
+// breach screen. Setting AUTH_PASSWORD_POLICY=relaxed loosens this for LOCAL /
+// TESTING only — a lower length floor, no blocklist, and no breach check — so
+// throwaway test accounts are easy to create. Never set it in production.
+function isRelaxed(): boolean {
+  return (process.env.AUTH_PASSWORD_POLICY || "").toLowerCase() === "relaxed";
+}
 
 // A tiny local blocklist as a guaranteed floor if the network check is down.
 const COMMON = new Set([
@@ -35,13 +45,15 @@ export interface PolicyResult {
 
 /** Synchronous structural checks (length + local blocklist). */
 export function checkPasswordPolicy(password: string): PolicyResult {
-  if (password.length < MIN_LENGTH) {
-    return { ok: false, reason: `Use at least ${MIN_LENGTH} characters.` };
+  const relaxed = isRelaxed();
+  const min = relaxed ? RELAXED_MIN_LENGTH : MIN_LENGTH;
+  if (password.length < min) {
+    return { ok: false, reason: `Use at least ${min} characters.` };
   }
   if (password.length > MAX_LENGTH) {
     return { ok: false, reason: `Keep it under ${MAX_LENGTH} characters.` };
   }
-  if (COMMON.has(password.toLowerCase())) {
+  if (!relaxed && COMMON.has(password.toLowerCase())) {
     return { ok: false, reason: "That password is too common — choose another." };
   }
   return { ok: true };
@@ -91,7 +103,7 @@ export async function validateNewPassword(
 ): Promise<PolicyResult> {
   const local = checkPasswordPolicy(password);
   if (!local.ok) return local;
-  if (await isBreachedPassword(password)) {
+  if (!isRelaxed() && (await isBreachedPassword(password))) {
     return {
       ok: false,
       reason:

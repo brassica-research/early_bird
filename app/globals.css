@@ -253,8 +253,8 @@ a {
 .call-cta-label {
   margin: 0;
   font-weight: 700;
-  font-size: 0.95rem;
-  color: var(--ink-soft);
+  font-size: 1.25rem;
+  color: var(--ink);
 }
 .btn-call {
   width: 100%;
@@ -272,6 +272,36 @@ a {
   .call-cta {
     display: flex;
   }
+}
+
+/* Desktop counterpart: reveals the number on click instead of dialing. */
+.call-cta-desktop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 18px 0 4px;
+  text-align: center;
+}
+@media (max-width: 760px) {
+  .call-cta-desktop {
+    display: none;
+  }
+}
+.call-reveal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 1.12rem;
+  background: var(--ok-bg);
+  color: var(--ok);
+  border: 1px solid color-mix(in srgb, var(--ok) 30%, var(--border));
+}
+.call-reveal strong {
+  font-weight: 800;
+  user-select: all;
 }
 
 /* --- Cards & sections --- */
@@ -656,19 +686,28 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 14px;
+  gap: 14px 20px;
+  flex-wrap: wrap;
+}
+/* Action clusters: an even, wrapping row on every width — never smooshed. */
+.stack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
 }
 @media (max-width: 640px) {
   .stack-head {
     flex-direction: column;
+    align-items: stretch;
   }
   .stack-head .stack-actions {
     width: 100%;
-    display: flex;
-    gap: 10px;
+    justify-content: stretch;
   }
   .stack-head .stack-actions .btn {
-    flex: 1;
+    flex: 1 1 auto;
   }
 }
 
@@ -777,7 +816,8 @@ th {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 12px 20px;
+  flex-wrap: wrap;
 }
 ul.clean {
   margin: 8px 0;

@@ -105,6 +105,8 @@ export default function IntakePage() {
   const [description, setDescription] = useState("");
   const [clientUrgency, setClientUrgency] = useState<string>("");
   const [smsOptIn, setSmsOptIn] = useState(false);
+  // Desktop CTA reveals the number instead of dialing (mobile dials directly).
+  const [showPhone, setShowPhone] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -269,6 +271,7 @@ export default function IntakePage() {
               A few details and a description — we’ll triage it instantly.
             </p>
 
+            {/* Mobile: tap to dial the call center directly. */}
             <div className="call-cta">
               <p className="call-cta-label">Rather talk to a person?</p>
               <a
@@ -278,6 +281,28 @@ export default function IntakePage() {
               >
                 <span aria-hidden="true">📞</span> Talk to a Tech Now
               </a>
+            </div>
+
+            {/* Desktop: reveal the number (no auto-dial). */}
+            <div className="call-cta-desktop">
+              <p className="call-cta-label">Rather talk to a person?</p>
+              {showPhone ? (
+                <div className="call-reveal" role="status">
+                  <span aria-hidden="true">📞</span>
+                  <span>
+                    Call our team at <strong>{supportPhone}</strong>
+                  </span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-call"
+                  onClick={() => setShowPhone(true)}
+                  aria-expanded={showPhone}
+                >
+                  <span aria-hidden="true">📞</span> Talk to a Tech Now
+                </button>
+              )}
             </div>
 
             <div className="card" style={{ padding: 22, marginTop: 20 }}>

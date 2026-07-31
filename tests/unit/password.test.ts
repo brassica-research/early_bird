@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { checkPasswordPolicy } from "@/lib/auth/passwordPolicy";
 
@@ -35,6 +35,25 @@ describe("password policy (NIST 800-63B length-first)", () => {
     expect(checkPasswordPolicy("correct horse battery staple").ok).toBe(true);
   });
   it("rejects an over-long password", () => {
+    expect(checkPasswordPolicy("a".repeat(200)).ok).toBe(false);
+  });
+});
+
+describe("password policy — relaxed mode (AUTH_PASSWORD_POLICY=relaxed)", () => {
+  const prev = process.env.AUTH_PASSWORD_POLICY;
+  beforeAll(() => {
+    process.env.AUTH_PASSWORD_POLICY = "relaxed";
+  });
+  afterAll(() => {
+    if (prev === undefined) delete process.env.AUTH_PASSWORD_POLICY;
+    else process.env.AUTH_PASSWORD_POLICY = prev;
+  });
+  it("accepts short, common passwords for easy test-account creation", () => {
+    expect(checkPasswordPolicy("test").ok).toBe(true);
+    expect(checkPasswordPolicy("password").ok).toBe(true);
+  });
+  it("still enforces a minimal length floor and the max length", () => {
+    expect(checkPasswordPolicy("ab").ok).toBe(false);
     expect(checkPasswordPolicy("a".repeat(200)).ok).toBe(false);
   });
 });
