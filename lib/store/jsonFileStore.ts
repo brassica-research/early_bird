@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import os from "os";
 import type { Store, HeuristicConfig } from "./types";
 import type {
   Submission,
@@ -28,7 +29,12 @@ import type {
 // flip STORE_DRIVER=postgres — see ./postgresStore.ts.
 // ---------------------------------------------------------------------------
 
-const DATA_DIR = path.resolve(process.env.DATA_DIR || "./data");
+// Where seeds are read from (the tracked, possibly read-only bundle) and where
+// runtime files are written. They're the same locally; on a read-only host
+// (serverless — Vercel/Lambda mounts the bundle read-only), DATA_DIR is
+// switched to a writable temp dir at init so the app still runs.
+const SEED_DIR = path.resolve(process.env.DATA_DIR || "./data");
+let DATA_DIR = SEED_DIR;
 
 const FILES = {
   submissions: "submissions.json",
@@ -45,6 +51,50 @@ const FILES = {
 const SEEDS = {
   heuristic: "heuristic-config.seed.json",
 } as const;
+
+let warnedFallback = false;
+
+/**
+ * Ensure DATA_DIR is writable. On a read-only filesystem (e.g. Vercel/Lambda,
+ * where the deploy bundle is mounted read-only at /var/task), fall back to a
+ * writable temp dir and copy the tracked seeds across so the app still runs.
+ *
+ * NOTE: the temp dir is EPHEMERAL — per instance, cleared on redeploy/cold
+ * start. For durable storage on serverless, set STORE_DRIVER=postgres +
+ * DATABASE_URL (see ./postgresStore.ts).
+ */
+async function ensureWritableDataDir(): Promise<void> {
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    const probe = path.join(DATA_DIR, ".write-probe");
+    await fs.writeFile(probe, "ok");
+    await fs.rm(probe, { force: true });
+    return; // DATA_DIR is writable — use it as-is.
+  } catch {
+    const fallback = path.join(os.tmpdir(), "early-bird-data");
+    await fs.mkdir(fallback, { recursive: true });
+    // Copy read-only seed files from the bundle so seeding still works.
+    for (const seed of Object.values(SEEDS)) {
+      try {
+        await fs.copyFile(
+          path.join(SEED_DIR, seed),
+          path.join(fallback, seed),
+        );
+      } catch {
+        /* seed missing — non-fatal */
+      }
+    }
+    if (!warnedFallback) {
+      warnedFallback = true;
+      console.warn(
+        `[store] "${DATA_DIR}" is not writable; using ephemeral "${fallback}". ` +
+          `Data will not persist across restarts — set STORE_DRIVER=postgres + ` +
+          `DATABASE_URL for durable storage.`,
+      );
+    }
+    DATA_DIR = fallback;
+  }
+}
 
 async function readJson<T>(file: string, fallback: T): Promise<T> {
   try {
@@ -79,7 +129,7 @@ export class JsonFileStore implements Store {
   }
 
   async init(): Promise<void> {
-    await fs.mkdir(DATA_DIR, { recursive: true });
+    await ensureWritableDataDir();
     // Seed the live heuristic config from the tracked seed on first run.
     const livePath = path.join(DATA_DIR, FILES.heuristicLive);
     try {
