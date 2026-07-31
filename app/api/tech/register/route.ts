@@ -51,25 +51,33 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await registerTech(parsed.data);
-  if (!result.ok || !result.account) {
+  try {
+    const result = await registerTech(parsed.data);
+    if (!result.ok || !result.account) {
+      return noStoreJson(
+        { error: result.reason, field: result.field },
+        { status: 400 },
+      );
+    }
+
+    const token = await createSessionToken(secret, result.account.id);
+    const res = noStoreJson({
+      ok: true,
+      tech: { id: result.account.id, name: result.account.name },
+    });
+    res.cookies.set(TECH_COOKIE, token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+      maxAge: 8 * 60 * 60,
+    });
+    return res;
+  } catch (err) {
+    console.error("tech register failed:", err);
     return noStoreJson(
-      { error: result.reason, field: result.field },
-      { status: 400 },
+      { error: "Something went wrong creating your account. Please try again." },
+      { status: 500 },
     );
   }
-
-  const token = await createSessionToken(secret, result.account.id);
-  const res = noStoreJson({
-    ok: true,
-    tech: { id: result.account.id, name: result.account.name },
-  });
-  res.cookies.set(TECH_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/",
-    maxAge: 8 * 60 * 60,
-  });
-  return res;
 }
