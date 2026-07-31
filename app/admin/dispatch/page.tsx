@@ -266,7 +266,38 @@ export default function AdminDispatchPage() {
                       <td data-label="When" className="muted">
                         {since(j.createdAt)}
                       </td>
-                      <td data-label="Category">{j.triage.categoryLabel}</td>
+                      <td data-label="Category">
+                        {j.triage.categoryLabel}
+                        {j.issueAssessment && j.issueAssessment.scope !== "in_scope" && (
+                          <>
+                            {" "}
+                            <span
+                              className={`badge ${j.issueAssessment.hardStop ? "badge-emergency" : "badge-high"}`}
+                              title={`${j.issueAssessment.issue.issue} — ${j.issueAssessment.scope.replace("_", " ")}`}
+                            >
+                              {j.issueAssessment.hardStop
+                                ? "Hard stop"
+                                : j.issueAssessment.requiresLicensedPro
+                                  ? "Refer"
+                                  : j.issueAssessment.scope}
+                            </span>
+                          </>
+                        )}
+                        {j.licensing?.requiresLicensedPro && (
+                          <>
+                            {" "}
+                            <span
+                              className="badge badge-high"
+                              title={`${j.licensing.stateCode}: ${j.licensing.trades
+                                .filter((t) => t.requiresLicensedPro)
+                                .map((t) => t.tradeLabel)
+                                .join(", ")} — route to licensed partner`}
+                            >
+                              Licensed pro
+                            </span>
+                          </>
+                        )}
+                      </td>
                       <td data-label="Urgency">
                         {j.input.clientUrgency ?? j.triage.urgency}
                         {j.input.clientUrgency ? " (client)" : ""}

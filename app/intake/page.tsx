@@ -4,6 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { SERVICES } from "@/lib/services";
 import { detectSafety } from "@/lib/safety";
+import { STATES, parseStateFromAddress } from "@/lib/licensing";
+import { assessIssue, type IssueAssessment } from "@/lib/issues";
 import type { Submission, Slot, TriageResult } from "@/lib/types";
 
 type Step = "form" | "triage" | "done";
@@ -25,6 +27,39 @@ function UrgencyBadge({ urgency }: { urgency: string }) {
     <span className={`badge ${URGENCY_BADGE[urgency] || "badge-normal"}`}>
       {urgency.toUpperCase()}
     </span>
+  );
+}
+
+// Issue-level scope advisory from the Issues Matrix. A safety hard-stop renders
+// as the red emergency banner; everything else is a calm inline note. Advisory
+// only — it never blocks a booking.
+function IssueScopeAdvisory({ a }: { a: IssueAssessment | null }) {
+  if (!a) return null;
+  if (a.hardStop) {
+    return (
+      <div className="emergency-banner" role="alert">
+        <span className="eb-icon" aria-hidden="true">
+          ⚠
+        </span>
+        <div>
+          <strong>Please don’t attempt this one yourself.</strong>
+          <p>{a.message}</p>
+        </div>
+      </div>
+    );
+  }
+  const label =
+    a.scope === "in_scope"
+      ? "We can typically handle this"
+      : "We’ll assess this on-site";
+  return (
+    <div
+      className={`alert ${a.scope === "in_scope" ? "alert-ok" : "alert-warn"}`}
+      style={{ marginTop: 12 }}
+    >
+      <strong>{label}</strong>
+      <p style={{ margin: "4px 0 0" }}>{a.message}</p>
+    </div>
   );
 }
 
@@ -64,6 +99,7 @@ export default function IntakePage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [stateCode, setStateCode] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [description, setDescription] = useState("");
@@ -84,6 +120,18 @@ export default function IntakePage() {
 
   // Live emergency scan of what the customer has entered so far.
   const safety = detectSafety(`${description} ${selectedItems.join(" ")}`);
+
+  // Resolve the state: explicit pick wins, else best-effort from the address.
+  // Captured for internal routing/disposition only (not shown to the customer).
+  const effectiveState = stateCode || parseStateFromAddress(address) || "";
+  // Live issue-scope match from what they've described + selected.
+  const issueScope = assessIssue(`${description} ${selectedItems.join(" ")}`);
+
+  // Call-center number for the tap-to-call CTA (mobile). Configurable so it can
+  // point at the real line without a code change.
+  const supportPhone =
+    process.env.NEXT_PUBLIC_SUPPORT_PHONE || "+1 (800) 555-0100";
+  const telHref = `tel:${supportPhone.replace(/[^\d+]/g, "")}`;
 
   // Group availability by day so the customer picks a day first, then a window
   // — instead of scrolling two weeks of slots at once (especially on mobile).
@@ -144,6 +192,7 @@ export default function IntakePage() {
           email,
           phone,
           address,
+          ...(effectiveState ? { state: effectiveState } : {}),
           affectedServices: buildAffectedServices(),
           description,
           ...(clientUrgency ? { clientUrgency } : {}),
@@ -220,6 +269,17 @@ export default function IntakePage() {
               A few details and a description — we’ll triage it instantly.
             </p>
 
+            <div className="call-cta">
+              <p className="call-cta-label">Rather talk to a person?</p>
+              <a
+                className="btn btn-call"
+                href={telHref}
+                aria-label={`Call Early Bird at ${supportPhone}`}
+              >
+                <span aria-hidden="true">📞</span> Talk to a Tech Now
+              </a>
+            </div>
+
             <div className="card" style={{ padding: 22, marginTop: 20 }}>
               <div className="grid cols-2">
                 <div className="form-field">
@@ -274,6 +334,24 @@ export default function IntakePage() {
                   {fieldErrors.address && (
                     <div className="field-error">{fieldErrors.address[0]}</div>
                   )}
+                </div>
+                <div className="form-field">
+                  <label htmlFor="state">
+                    State{" "}
+                    <span className="hint">— helps us route your visit</span>
+                  </label>
+                  <select
+                    id="state"
+                    value={effectiveState}
+                    onChange={(e) => setStateCode(e.target.value)}
+                  >
+                    <option value="">Select your state…</option>
+                    {STATES.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -378,6 +456,7 @@ export default function IntakePage() {
                     </div>
                   </div>
                 )}
+                <IssueScopeAdvisory a={issueScope} />
               </div>
 
               <div className="form-field">
@@ -460,7 +539,7 @@ export default function IntakePage() {
                 {triage.withinNonLicensedScope ? (
                   <span className="badge badge-ok">In scope</span>
                 ) : (
-                  <span className="badge badge-high">Needs licensed pro</span>
+                  <span className="badge badge-normal">We’ll assess on-site</span>
                 )}
               </div>
               <div
@@ -482,6 +561,10 @@ export default function IntakePage() {
                   </ul>
                 </div>
               )}
+
+              <IssueScopeAdvisory
+                a={result.submission.issueAssessment ?? null}
+              />
 
               {triage.troubleshootingSteps.length > 0 && (
                 <div style={{ marginTop: 8 }}>

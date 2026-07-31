@@ -29,6 +29,27 @@ describe("POST /api/intake", () => {
     expect(data.submission.triage.category).toBe("plumbing");
     expect(data.submission.input.clientUrgency).toBe("high");
     expect(Array.isArray(data.availability)).toBe(true);
+    // Issue Matrix: a dripping faucet is licensed (pressurized supply) work.
+    expect(data.submission.issueAssessment?.scope).toBe("out_of_scope");
+    // Licensing advisory: Illinois state-licenses plumbing.
+    expect(data.submission.licensing?.stateCode).toBe("IL");
+  });
+
+  it("flags a safety hard-stop issue on the submission", async () => {
+    const res = await intakePOST(
+      jsonReq({
+        name: "Sam Client",
+        email: "sam@home.com",
+        phone: "5551110000",
+        address: "12 Birch Rd, Valparaiso IN",
+        affectedServices: ["Microwave"],
+        description: "the microwave stopped heating food",
+      }),
+    );
+    expect(res.status).toBe(201);
+    const data = await res.json();
+    expect(data.submission.issueAssessment?.hardStop).toBe(true);
+    expect(data.submission.issueAssessment?.requiresLicensedPro).toBe(true);
   });
 
   it("rejects invalid input with 400", async () => {

@@ -5,6 +5,8 @@ import { triageIntake } from "@/lib/triage";
 import { listAvailability } from "@/lib/scheduling/availability";
 import { intakeSchema } from "@/lib/validation";
 import { geocode } from "@/lib/geo/geocode";
+import { assessLicensing, parseStateFromAddress } from "@/lib/licensing";
+import { assessIssue } from "@/lib/issues";
 import type { Submission } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -38,6 +40,19 @@ export async function POST(request: Request) {
       geocode(input.address),
     ]);
 
+    // State licensing advisory, keyed on the triaged trade. Fall back to
+    // parsing the state from the address when the form didn't send one.
+    const stateCode = input.state || parseStateFromAddress(input.address) || "";
+    const licensing = stateCode
+      ? assessLicensing(stateCode, [triage.category])
+      : null;
+
+    // Issue-level scope from the Issues Matrix: match what the customer
+    // described + selected to the closest catalog issue.
+    const issueAssessment = assessIssue(
+      `${input.description} ${input.affectedServices.join(" ")}`,
+    );
+
     const submission: Submission = {
       id: submissionId,
       createdAt: new Date().toISOString(),
@@ -49,6 +64,8 @@ export async function POST(request: Request) {
       location,
       dispatchStatus: "queued",
       assignment: null,
+      licensing,
+      issueAssessment,
     };
 
     const store = await getInitializedStore();

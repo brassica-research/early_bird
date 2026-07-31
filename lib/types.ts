@@ -4,6 +4,9 @@
 // the (future) mobile app. Keep them serialization-friendly (plain JSON).
 // ---------------------------------------------------------------------------
 
+import type { LicensingAssessment } from "./licensing";
+import type { IssueAssessment } from "./issues";
+
 export type ServiceCategoryId =
   | "plumbing"
   | "electrical"
@@ -30,6 +33,8 @@ export interface IntakeInput {
   email: string;
   phone: string;
   address: string;
+  /** USPS state code (e.g. "TX"), used for the state licensing advisory. */
+  state?: string;
   /** Customer-selected service areas/appliances (chips). */
   affectedServices: string[];
   /** Free-text description of the issue/request. */
@@ -168,6 +173,17 @@ export interface Submission {
   dispatchStatus: DispatchStatus;
   /** The claiming technician + committed ETA, once assigned. */
   assignment?: Assignment | null;
+  /**
+   * State licensing advisory for this job, computed at intake from the
+   * customer's state + triaged trade. Advisory only; null when the state is
+   * unknown or the trade carries no state gate.
+   */
+  licensing?: LicensingAssessment | null;
+  /**
+   * Best-matching catalog issue + fixability verdict from the Issues Matrix,
+   * computed at intake from the description + selected chips. Advisory only.
+   */
+  issueAssessment?: IssueAssessment | null;
   notes?: string;
 }
 
