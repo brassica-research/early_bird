@@ -266,7 +266,23 @@ export default function AdminDispatchPage() {
                       <td data-label="When" className="muted">
                         {since(j.createdAt)}
                       </td>
-                      <td data-label="Category">{j.triage.categoryLabel}</td>
+                      <td data-label="Category">
+                        {j.triage.categoryLabel}
+                        {j.licensing?.requiresLicensedPro && (
+                          <>
+                            {" "}
+                            <span
+                              className="badge badge-high"
+                              title={`${j.licensing.stateCode}: ${j.licensing.trades
+                                .filter((t) => t.requiresLicensedPro)
+                                .map((t) => t.tradeLabel)
+                                .join(", ")} — route to licensed partner`}
+                            >
+                              Licensed pro
+                            </span>
+                          </>
+                        )}
+                      </td>
                       <td data-label="Urgency">
                         {j.input.clientUrgency ?? j.triage.urgency}
                         {j.input.clientUrgency ? " (client)" : ""}

@@ -4,6 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import { SERVICES } from "@/lib/services";
 import { detectSafety } from "@/lib/safety";
+import {
+  STATES,
+  assessLicensing,
+  parseStateFromAddress,
+  type LicensingAssessment,
+} from "@/lib/licensing";
 import type { Submission, Slot, TriageResult } from "@/lib/types";
 
 type Step = "form" | "triage" | "done";
@@ -25,6 +31,48 @@ function UrgencyBadge({ urgency }: { urgency: string }) {
     <span className={`badge ${URGENCY_BADGE[urgency] || "badge-normal"}`}>
       {urgency.toUpperCase()}
     </span>
+  );
+}
+
+// State licensing advisory — informational, never blocking. Mirrors the safety
+// banner's "err toward disclosure" posture: electrical/plumbing/HVAC are
+// confirm-before-offer, so we tell the customer up front when their state
+// routes the work to a licensed pro.
+function LicensingAdvisory({
+  licensing,
+}: {
+  licensing: LicensingAssessment | null;
+}) {
+  if (!licensing || licensing.trades.length === 0) return null;
+  const needsPro = licensing.requiresLicensedPro;
+  return (
+    <div
+      className={`alert ${needsPro ? "alert-warn" : "alert-ok"}`}
+      style={{ marginTop: 12 }}
+    >
+      <strong>
+        Licensing in {licensing.stateName}
+        {needsPro ? " — some work routes to a licensed pro" : " — good to go"}
+      </strong>
+      <ul className="clean" style={{ marginBottom: needsPro ? 6 : 0 }}>
+        {licensing.trades.map((t) => (
+          <li key={t.trade}>
+            {t.requiresLicensedPro && (
+              <span className="badge badge-high" style={{ marginRight: 6 }}>
+                Licensed pro
+              </span>
+            )}
+            {t.message}
+          </li>
+        ))}
+      </ul>
+      {needsPro && (
+        <p className="muted" style={{ fontSize: "0.8rem", margin: 0 }}>
+          You can still book — we’ll diagnose on-site and hand off licensed work
+          to a vetted partner. Not legal advice.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -64,6 +112,7 @@ export default function IntakePage() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [stateCode, setStateCode] = useState("");
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [description, setDescription] = useState("");
@@ -84,6 +133,14 @@ export default function IntakePage() {
 
   // Live emergency scan of what the customer has entered so far.
   const safety = detectSafety(`${description} ${selectedItems.join(" ")}`);
+
+  // Resolve the state: explicit pick wins, else best-effort from the address.
+  const effectiveState = stateCode || parseStateFromAddress(address) || "";
+  // Live licensing advisory for the selected trades in that state.
+  const licensing =
+    effectiveState && selectedCategories.length
+      ? assessLicensing(effectiveState, selectedCategories)
+      : null;
 
   // Group availability by day so the customer picks a day first, then a window
   // — instead of scrolling two weeks of slots at once (especially on mobile).
@@ -144,6 +201,7 @@ export default function IntakePage() {
           email,
           phone,
           address,
+          ...(effectiveState ? { state: effectiveState } : {}),
           affectedServices: buildAffectedServices(),
           description,
           ...(clientUrgency ? { clientUrgency } : {}),
@@ -275,6 +333,24 @@ export default function IntakePage() {
                     <div className="field-error">{fieldErrors.address[0]}</div>
                   )}
                 </div>
+                <div className="form-field">
+                  <label htmlFor="state">
+                    State{" "}
+                    <span className="hint">— sets licensing rules</span>
+                  </label>
+                  <select
+                    id="state"
+                    value={effectiveState}
+                    onChange={(e) => setStateCode(e.target.value)}
+                  >
+                    <option value="">Select your state…</option>
+                    {STATES.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="form-field">
@@ -337,6 +413,8 @@ export default function IntakePage() {
                     </div>
                   </div>
                 ))}
+
+                <LicensingAdvisory licensing={licensing} />
               </div>
 
               <div className="form-field">
@@ -482,6 +560,8 @@ export default function IntakePage() {
                   </ul>
                 </div>
               )}
+
+              <LicensingAdvisory licensing={result.submission.licensing ?? null} />
 
               {triage.troubleshootingSteps.length > 0 && (
                 <div style={{ marginTop: 8 }}>

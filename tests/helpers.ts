@@ -8,16 +8,10 @@ import path from "path";
 const DATA_DIR = path.resolve(process.env.DATA_DIR || ".test-data");
 const REPO_DATA = path.resolve(__dirname, "../data");
 
-const RUNTIME_FILES = [
-  "submissions.json",
-  "feedback.json",
-  "slots.json",
-  "charges.json",
-  "tech-accounts.json",
-  "reset-tokens.json",
-  "tech-presence.json",
-  "heuristic-config.live.json",
-];
+// Seed files are copied in fresh each reset; everything else in the data dir is
+// runtime state to be cleared. Listing seeds (rather than runtime files) means a
+// newly added store file can never silently leak across tests.
+const SEED_FILES = ["heuristic-config.seed.json", "slots.seed.json"];
 
 /**
  * Reset the isolated data dir to a clean state: seed files present, runtime
@@ -25,16 +19,15 @@ const RUNTIME_FILES = [
  */
 export async function resetData(): Promise<void> {
   await fs.mkdir(DATA_DIR, { recursive: true });
-  // Copy the tracked seed files so the store can seed from them.
-  for (const seed of ["heuristic-config.seed.json", "slots.seed.json"]) {
-    await fs.copyFile(
-      path.join(REPO_DATA, seed),
-      path.join(DATA_DIR, seed),
-    );
-  }
-  // Remove any runtime files from a prior test.
-  for (const f of RUNTIME_FILES) {
+  // Remove every runtime file from a prior test — anything that isn't a seed.
+  const existing = await fs.readdir(DATA_DIR).catch(() => [] as string[]);
+  for (const f of existing) {
+    if (SEED_FILES.includes(f)) continue;
     await fs.rm(path.join(DATA_DIR, f), { force: true });
+  }
+  // Copy the tracked seed files so the store can seed from them.
+  for (const seed of SEED_FILES) {
+    await fs.copyFile(path.join(REPO_DATA, seed), path.join(DATA_DIR, seed));
   }
   // Clear the cached store + its init promise so the next call re-initializes.
   const g = globalThis as unknown as {

@@ -14,6 +14,8 @@ export const intakeSchema = z.object({
     .min(7, "A valid phone number is required")
     .max(40),
   address: z.string().trim().min(5, "A home address is required").max(300),
+  /** USPS state code (e.g. "TX") — powers the state licensing advisory. */
+  state: z.string().trim().length(2).toUpperCase().optional(),
   affectedServices: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
   description: z
     .string()
