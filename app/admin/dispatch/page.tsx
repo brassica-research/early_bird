@@ -268,6 +268,21 @@ export default function AdminDispatchPage() {
                       </td>
                       <td data-label="Category">
                         {j.triage.categoryLabel}
+                        {j.issueAssessment && j.issueAssessment.scope !== "in_scope" && (
+                          <>
+                            {" "}
+                            <span
+                              className={`badge ${j.issueAssessment.hardStop ? "badge-emergency" : "badge-high"}`}
+                              title={`${j.issueAssessment.issue.issue} — ${j.issueAssessment.scope.replace("_", " ")}`}
+                            >
+                              {j.issueAssessment.hardStop
+                                ? "Hard stop"
+                                : j.issueAssessment.requiresLicensedPro
+                                  ? "Refer"
+                                  : j.issueAssessment.scope}
+                            </span>
+                          </>
+                        )}
                         {j.licensing?.requiresLicensedPro && (
                           <>
                             {" "}

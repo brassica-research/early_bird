@@ -10,6 +10,7 @@ import {
   parseStateFromAddress,
   type LicensingAssessment,
 } from "@/lib/licensing";
+import { assessIssue, type IssueAssessment } from "@/lib/issues";
 import type { Submission, Slot, TriageResult } from "@/lib/types";
 
 type Step = "form" | "triage" | "done";
@@ -72,6 +73,41 @@ function LicensingAdvisory({
           to a vetted partner. Not legal advice.
         </p>
       )}
+    </div>
+  );
+}
+
+// Issue-level scope advisory from the Issues Matrix. A safety hard-stop renders
+// as the red emergency banner; everything else is a calm inline note. Advisory
+// only — it never blocks a booking.
+function IssueScopeAdvisory({ a }: { a: IssueAssessment | null }) {
+  if (!a) return null;
+  if (a.hardStop) {
+    return (
+      <div className="emergency-banner" role="alert">
+        <span className="eb-icon" aria-hidden="true">
+          ⚠
+        </span>
+        <div>
+          <strong>Please don’t attempt this one yourself.</strong>
+          <p>{a.message}</p>
+        </div>
+      </div>
+    );
+  }
+  const label =
+    a.scope === "in_scope"
+      ? "We can typically handle this"
+      : a.requiresLicensedPro
+        ? "We’ll diagnose, then refer"
+        : "We’ll take a look on-site";
+  return (
+    <div
+      className={`alert ${a.scope === "in_scope" ? "alert-ok" : "alert-warn"}`}
+      style={{ marginTop: 12 }}
+    >
+      <strong>{label}</strong>
+      <p style={{ margin: "4px 0 0" }}>{a.message}</p>
     </div>
   );
 }
@@ -141,6 +177,8 @@ export default function IntakePage() {
     effectiveState && selectedCategories.length
       ? assessLicensing(effectiveState, selectedCategories)
       : null;
+  // Live issue-scope match from what they've described + selected.
+  const issueScope = assessIssue(`${description} ${selectedItems.join(" ")}`);
 
   // Group availability by day so the customer picks a day first, then a window
   // — instead of scrolling two weeks of slots at once (especially on mobile).
@@ -456,6 +494,7 @@ export default function IntakePage() {
                     </div>
                   </div>
                 )}
+                <IssueScopeAdvisory a={issueScope} />
               </div>
 
               <div className="form-field">
@@ -561,6 +600,9 @@ export default function IntakePage() {
                 </div>
               )}
 
+              <IssueScopeAdvisory
+                a={result.submission.issueAssessment ?? null}
+              />
               <LicensingAdvisory licensing={result.submission.licensing ?? null} />
 
               {triage.troubleshootingSteps.length > 0 && (

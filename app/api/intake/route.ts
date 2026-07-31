@@ -6,6 +6,7 @@ import { listAvailability } from "@/lib/scheduling/availability";
 import { intakeSchema } from "@/lib/validation";
 import { geocode } from "@/lib/geo/geocode";
 import { assessLicensing, parseStateFromAddress } from "@/lib/licensing";
+import { assessIssue } from "@/lib/issues";
 import type { Submission } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -46,6 +47,12 @@ export async function POST(request: Request) {
       ? assessLicensing(stateCode, [triage.category])
       : null;
 
+    // Issue-level scope from the Issues Matrix: match what the customer
+    // described + selected to the closest catalog issue.
+    const issueAssessment = assessIssue(
+      `${input.description} ${input.affectedServices.join(" ")}`,
+    );
+
     const submission: Submission = {
       id: submissionId,
       createdAt: new Date().toISOString(),
@@ -58,6 +65,7 @@ export async function POST(request: Request) {
       dispatchStatus: "queued",
       assignment: null,
       licensing,
+      issueAssessment,
     };
 
     const store = await getInitializedStore();

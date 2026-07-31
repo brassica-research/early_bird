@@ -39,6 +39,51 @@ function row(label: string, value: string): string {
   return `<p style="margin:6px 0;"><strong>${label}:</strong> ${value}</p>`;
 }
 
+/** HTML block for the state licensing advisory, when one applies. */
+function licensingNoteHtml(submission: Submission): string {
+  const lic = submission.licensing;
+  if (!lic || !lic.requiresLicensedPro) return "";
+  const items = lic.trades
+    .filter((t) => t.requiresLicensedPro)
+    .map((t) => `<li style="margin:2px 0;">${escapeHtml(t.message)}</li>`)
+    .join("");
+  return `<div style="margin-top:12px;padding:12px;border-radius:9px;background:#fdf3e2;color:#7c4a03;">
+    <strong>Licensing in ${escapeHtml(lic.stateName)}</strong>
+    <ul style="margin:6px 0 0;padding-left:18px;">${items}</ul>
+    <p style="margin:8px 0 0;font-size:12px;">You’re still booked — we’ll diagnose on-site and hand off any licensed work to a vetted partner. Not legal advice.</p>
+  </div>`;
+}
+
+/** HTML block for the issue-scope advisory, when the work isn't cleanly in scope. */
+function issueNoteHtml(submission: Submission): string {
+  const a = submission.issueAssessment;
+  if (!a || a.scope === "in_scope") return "";
+  const bg = a.hardStop ? "#fbe6e6" : "#fdf3e2";
+  const fg = a.hardStop ? "#7a1f1f" : "#7c4a03";
+  return `<div style="margin-top:12px;padding:12px;border-radius:9px;background:${bg};color:${fg};">
+    <strong>${a.hardStop ? "Safety note" : "About this repair"}</strong>
+    <p style="margin:6px 0 0;">${escapeHtml(a.message)}</p>
+  </div>`;
+}
+
+/** Plain-text version of the issue-scope advisory. */
+function issueNoteText(submission: Submission): string {
+  const a = submission.issueAssessment;
+  if (!a || a.scope === "in_scope") return "";
+  return `\n${a.hardStop ? "Safety note" : "About this repair"}: ${a.message}\n`;
+}
+
+/** Plain-text version of the licensing advisory. */
+function licensingNoteText(submission: Submission): string {
+  const lic = submission.licensing;
+  if (!lic || !lic.requiresLicensedPro) return "";
+  const lines = lic.trades
+    .filter((t) => t.requiresLicensedPro)
+    .map((t) => `- ${t.message}`)
+    .join("\n");
+  return `\nLicensing in ${lic.stateName}:\n${lines}\nYou're still booked — we'll diagnose on-site and hand off licensed work to a vetted partner.\n`;
+}
+
 /** Booking confirmation sent to the customer. */
 export function bookingConfirmationEmail(
   submission: Submission,
@@ -59,6 +104,8 @@ export function bookingConfirmationEmail(
     ${row("Issue", `${escapeHtml(triage.categoryLabel)} (${triage.urgency})`)}
     ${row("Estimated on-site time", `~${triage.estimatedDurationMin} min`)}
     ${scopeNote}
+    ${issueNoteHtml(submission)}
+    ${licensingNoteHtml(submission)}
     <p style="margin:16px 0 0;color:#46586b;font-size:13px;">Reference: ${submission.id}</p>
     <p style="margin:8px 0 0;color:#46586b;font-size:13px;">Need to change or cancel? Just reply to this email.</p>
   `,
@@ -70,7 +117,7 @@ When: ${when}
 Where: ${input.address}
 Issue: ${triage.categoryLabel} (${triage.urgency})
 Estimated on-site time: ~${triage.estimatedDurationMin} min
-${triage.withinNonLicensedScope ? "" : "\nNote: part of your request may need a licensed professional; our technician will assess on-site.\n"}
+${triage.withinNonLicensedScope ? "" : "\nNote: part of your request may need a licensed professional; our technician will assess on-site.\n"}${issueNoteText(submission)}${licensingNoteText(submission)}
 Reference: ${submission.id}
 Need to change or cancel? Just reply to this email.`;
 

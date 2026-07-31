@@ -5,6 +5,7 @@
 // ---------------------------------------------------------------------------
 
 import type { LicensingAssessment } from "./licensing";
+import type { IssueAssessment } from "./issues";
 
 export type ServiceCategoryId =
   | "plumbing"
@@ -178,6 +179,11 @@ export interface Submission {
    * unknown or the trade carries no state gate.
    */
   licensing?: LicensingAssessment | null;
+  /**
+   * Best-matching catalog issue + fixability verdict from the Issues Matrix,
+   * computed at intake from the description + selected chips. Advisory only.
+   */
+  issueAssessment?: IssueAssessment | null;
   notes?: string;
 }
 
