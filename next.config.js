@@ -28,6 +28,11 @@ const adminBase = (process.env.ADMIN_BASENAME || "admin").replace(/^\/|\/$/g, ""
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Keep the native Postgres driver external so it is required from
+  // node_modules at runtime AND traced into the serverless function bundle
+  // (a dynamic/variable import alone is invisible to the file tracer, which
+  // otherwise leaves `pg` out of the deploy → "cannot find module 'pg'").
+  serverExternalPackages: ["pg"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

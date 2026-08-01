@@ -35,15 +35,16 @@ const SEED_HEURISTIC = "heuristic-config.seed.json";
 const DATA_DIR = path.resolve(process.env.DATA_DIR || "./data");
 
 async function loadPg(): Promise<any> {
-  // Variable specifier + webpackIgnore keep the bundler from statically
-  // requiring `pg`; it is resolved natively at runtime only when selected.
-  const moduleName = "pg";
+  // Literal specifier so Next's file tracer includes `pg` in the serverless
+  // bundle; it's marked external (next.config `serverExternalPackages`) so the
+  // bundler still doesn't try to inline it. Imported lazily so JSON mode never
+  // needs a live DB.
   try {
-    return await import(/* webpackIgnore: true */ moduleName);
-  } catch {
+    return await import("pg");
+  } catch (err) {
     throw new Error(
-      "STORE_DRIVER=postgres could not load the `pg` package (it ships as a " +
-        "dependency — run `npm install` to restore it).",
+      "STORE_DRIVER=postgres could not load the `pg` package: " +
+        (err instanceof Error ? err.message : String(err)),
     );
   }
 }
