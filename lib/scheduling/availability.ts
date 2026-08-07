@@ -1,7 +1,8 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { getInitializedStore } from "@/lib/store";
 import type { Slot } from "@/lib/types";
+// Bundled seed (imported, not read from disk) so it ships in the serverless
+// function — a disk read of ./data fails on Vercel, where it isn't traced in.
+import slotsSeed from "@/data/slots.seed.json";
 
 // ---------------------------------------------------------------------------
 // Availability engine.
@@ -23,14 +24,8 @@ interface SlotSeed {
   }>;
 }
 
-const DATA_DIR = path.resolve(process.env.DATA_DIR || "./data");
-
 async function loadSeed(): Promise<SlotSeed> {
-  const raw = await fs.readFile(
-    path.join(DATA_DIR, "slots.seed.json"),
-    "utf8",
-  );
-  return JSON.parse(raw) as SlotSeed;
+  return slotsSeed as SlotSeed;
 }
 
 /** Deterministic id for a (date, window) pair so regeneration is idempotent. */

@@ -12,8 +12,10 @@ import type {
   TechPresence,
   DutySession,
 } from "@/lib/types";
-import { promises as fs } from "fs";
-import path from "path";
+// Import the seed as a module so it's bundled into the serverless function.
+// (Reading it from disk fails on Vercel, where the seed file isn't traced into
+// the deploy — the cause of "Heuristic config not found in database".)
+import heuristicSeed from "@/data/heuristic-config.seed.json";
 
 // ---------------------------------------------------------------------------
 // Postgres store — the "flip of a switch" production driver.
@@ -31,8 +33,36 @@ import path from "path";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-const SEED_HEURISTIC = "heuristic-config.seed.json";
-const DATA_DIR = path.resolve(process.env.DATA_DIR || "./data");
+/**
+ * Build node-postgres Pool options. We parse out any `sslmode` from the
+ * connection string and set `ssl` explicitly so (1) pg doesn't print its
+ * "sslmode require/prefer/verify-ca are aliases for verify-full" deprecation
+ * warning, and (2) TLS behavior stays deterministic across pg versions instead
+ * of tracking the soon-to-change sslmode alias semantics.
+ *
+ * Hosted Postgres (Prisma/Neon/Supabase/Vercel) serves a valid public cert, so
+ * we verify it by default. Set PG_SSL_NO_VERIFY=true for self-signed certs.
+ */
+function poolOptions(url: string): { connectionString: string; ssl: any } {
+  let connectionString = url;
+  let sslmode: string | null = null;
+  try {
+    const u = new URL(url);
+    sslmode = u.searchParams.get("sslmode");
+    if (sslmode !== null) {
+      u.searchParams.delete("sslmode");
+      connectionString = u.toString();
+    }
+  } catch {
+    // Not URL-parseable — fall back to the raw string + substring check below.
+    if (/[?&]sslmode=disable(&|$)/.test(url)) sslmode = "disable";
+  }
+  if (sslmode === "disable") return { connectionString, ssl: false };
+  return {
+    connectionString,
+    ssl: { rejectUnauthorized: process.env.PG_SSL_NO_VERIFY !== "true" },
+  };
+}
 
 async function loadPg(): Promise<any> {
   // Literal specifier so Next's file tracer includes `pg` in the serverless
@@ -63,12 +93,7 @@ export class PostgresStore implements Store {
         }
         const pg = await loadPg();
         const Pool = pg.Pool ?? pg.default?.Pool;
-        return new Pool({
-          connectionString: url,
-          ssl: url.includes("sslmode=disable")
-            ? false
-            : { rejectUnauthorized: false },
-        });
+        return new Pool(poolOptions(url));
       })();
     }
     return this.poolPromise;
@@ -139,23 +164,15 @@ export class PostgresStore implements Store {
         ON submissions ((data->>'dispatchStatus'));
     `);
 
-    // Seed heuristic config from the tracked seed file on first run.
+    // Seed heuristic config from the bundled seed on first run.
     const existing = await this.query(
       "SELECT config FROM heuristic_config WHERE id = 1",
     );
     if (existing.rows.length === 0) {
-      try {
-        const raw = await fs.readFile(
-          path.join(DATA_DIR, SEED_HEURISTIC),
-          "utf8",
-        );
-        await this.query(
-          "INSERT INTO heuristic_config (id, config) VALUES (1, $1) ON CONFLICT (id) DO NOTHING",
-          [raw],
-        );
-      } catch {
-        // Seed file missing; getHeuristicConfig will surface a clear error.
-      }
+      await this.query(
+        "INSERT INTO heuristic_config (id, config) VALUES (1, $1) ON CONFLICT (id) DO NOTHING",
+        [JSON.stringify(heuristicSeed)],
+      );
     }
   }
 
