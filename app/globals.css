@@ -589,6 +589,11 @@ textarea {
   border-color: color-mix(in srgb, var(--warn) 30%, var(--border));
   color: var(--amber-ink);
 }
+.alert-info {
+  background: var(--info-bg);
+  border-color: var(--info);
+  color: var(--ink);
+}
 .alert-ok {
   background: var(--ok-bg);
   border-color: color-mix(in srgb, var(--ok) 30%, var(--border));
@@ -1059,4 +1064,396 @@ ul.clean li {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* --- Deeper drill-down (level 3: symptoms) --- */
+.subgroup.deep {
+  margin-top: 10px;
+  border-style: solid;
+  border-color: var(--border);
+  background: var(--surface);
+}
+.subgroup.deep .subgroup-label {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* --- Room / floor --- */
+.floor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.floor-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.floor-opt:hover {
+  border-color: var(--amber);
+}
+.floor-opt[data-on="true"] {
+  border-color: var(--amber);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+.floor-label {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+.floor-hint {
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+}
+
+/* --- Photo attachments --- */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.photo-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.photo-btn {
+  /* Big enough to be a comfortable thumb target on a phone. */
+  min-height: 48px;
+}
+.photo-grid {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 10px;
+}
+.photo-thumb {
+  position: relative;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface-3);
+  aspect-ratio: 1 / 1;
+}
+.photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(16, 24, 40, 0.72);
+  color: #fff;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.photo-size {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(16, 24, 40, 0.66);
+  color: #fff;
+}
+
+/* --- Slot pricing --- */
+.slot-price {
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: var(--amber-ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.slot-tier {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+@media (prefers-color-scheme: dark) {
+  .slot-price {
+    color: var(--sunrise-1);
+  }
+}
+
+/* --- Checkout --- */
+.pay-summary {
+  padding: 20px 22px;
+}
+.pay-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.pay-amount {
+  font-weight: 800;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.pay-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+.pay-grid {
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .pay-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.pay-note {
+  margin: 14px 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+/* --- Where's my tech? tracker --- */
+.track-card {
+  padding: 20px 22px;
+}
+.track-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.track-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber-ink);
+}
+.track-ref {
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.track-headline {
+  margin: 6px 0 14px;
+  font-size: 1.2rem;
+}
+.track-steps {
+  list-style: none;
+  display: flex;
+  padding: 0;
+  margin: 0 0 16px;
+  gap: 4px;
+}
+.track-steps li {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  text-align: center;
+}
+.track-steps li::before {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: -50%;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+}
+.track-steps li:first-child::before {
+  display: none;
+}
+.track-steps li[data-on="true"]::before {
+  background: var(--sunrise-2);
+}
+.track-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  z-index: 1;
+}
+.track-steps li[data-on="true"] .track-dot {
+  background: var(--sunrise-2);
+}
+.track-steps li[data-on="true"] {
+  color: var(--ink);
+  font-weight: 700;
+}
+.track-steps li[data-current="true"] .track-dot {
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.25);
+}
+.track-countdown {
+  text-align: center;
+  margin-bottom: 16px;
+}
+.track-clock {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+.track-big {
+  font-size: 2.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.track-unit,
+.track-now {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+.track-now {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--ok);
+}
+.track-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+  margin: 10px 0 8px;
+}
+.track-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--sunrise-1), var(--sunrise-2));
+  transition: width 1s linear;
+}
+.track-sub {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+.track-map-wrap {
+  margin-top: 4px;
+}
+.track-map {
+  border-radius: var(--radius-sm);
+}
+.track-home {
+  fill: var(--info);
+}
+.track-home-halo {
+  fill: var(--info);
+  opacity: 0.14;
+}
+.track-tech {
+  fill: var(--sunrise-2);
+}
+.track-tech-halo {
+  fill: var(--sunrise-2);
+  opacity: 0.2;
+}
+.track-path {
+  stroke: var(--border-strong);
+  stroke-width: 0.6;
+  stroke-dasharray: 2 2;
+}
+.track-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+.track-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.track-legend-home {
+  background: var(--info);
+}
+.track-legend-tech {
+  background: var(--sunrise-2);
+}
+.track-distance {
+  margin: 10px 0 0;
+  font-size: 0.92rem;
+}
+.track-privacy {
+  margin: 6px 0 0;
+  font-size: 0.76rem;
+  color: var(--ink-faint);
+}
+
+/* --- Technician job photos --- */
+.job-photos {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 10px 0 4px;
+}
+.job-photos a {
+  display: block;
+  width: 78px;
+  height: 78px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.job-photos img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Unrelated extras the customer asked for on the same visit. */
+.job-extras {
+  margin: 8px 0 4px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--info-bg);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }

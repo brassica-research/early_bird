@@ -16,6 +16,7 @@ import {
   technicianAssignedSms,
 } from "@/lib/notify/templates";
 import { getPaymentProvider, DEFAULT_CURRENCY } from "@/lib/payments";
+import { trackingUrl } from "@/lib/tracking";
 
 // ---------------------------------------------------------------------------
 // Technician dispatch orchestration: the shared queue, atomic claiming,
@@ -37,8 +38,15 @@ export interface QueueItem {
   withinNonLicensedScope: boolean;
   estimatedDurationMin: number;
   description: string;
+  /** Unrelated extras for the same visit — they affect how long to budget. */
+  additionalRequests: string;
   /** Address is needed to judge travel; full contact is revealed on claim. */
   address: string;
+  /** Room the issue is in, and the floor — both affect access and tooling. */
+  room: string;
+  floor: string;
+  /** How many photos the customer attached (revealed in full on claim). */
+  photoCount: number;
   location: GeoPoint | null;
 }
 
@@ -53,7 +61,11 @@ function toQueueItem(s: Submission): QueueItem {
     withinNonLicensedScope: s.triage.withinNonLicensedScope,
     estimatedDurationMin: s.triage.estimatedDurationMin,
     description: s.input.description,
+    additionalRequests: s.input.additionalRequests ?? "",
     address: s.input.address,
+    room: s.input.room,
+    floor: s.input.floor,
+    photoCount: s.photoCount ?? 0,
     location: s.location ?? null,
   };
 }
@@ -115,6 +127,8 @@ export async function commitEta(
   submissionId: string,
   techId: string,
   etaMinutes: number,
+  /** Site origin, so the customer notification can link the live tracker. */
+  origin?: string | null,
 ): Promise<EtaResult> {
   if (!ETA_OPTIONS_MIN.includes(etaMinutes)) {
     return { ok: false, reason: "ETA must be a 30-minute increment." };
@@ -136,17 +150,22 @@ export async function commitEta(
     return { ok: false, reason: "Job is not assigned to you." };
   }
 
-  const notified = await notifyClientAssigned(job);
+  const notified = await notifyClientAssigned(job, origin);
   return { ok: true, job, notified };
 }
 
 /** Notify the customer that a technician is assigned + ETA. Never throws. */
 export async function notifyClientAssigned(
   job: Submission,
+  origin?: string | null,
 ): Promise<{ email: boolean; sms: boolean }> {
   const result = { email: false, sms: false };
+  // The tracker link needs an absolute URL. Prefer the configured base URL so
+  // links stay correct behind a proxy; fall back to the caller's origin.
+  const base = process.env.APP_BASE_URL || origin || null;
+  const track = base ? trackingUrl(base, job.id) : null;
   try {
-    const emailRes = await sendEmail(technicianAssignedEmail(job));
+    const emailRes = await sendEmail(technicianAssignedEmail(job, track));
     result.email = emailRes.delivered;
   } catch (err) {
     console.error("Assignment email failed:", err);
@@ -155,7 +174,7 @@ export async function notifyClientAssigned(
     try {
       const smsRes = await sendSms({
         to: job.input.phone,
-        body: technicianAssignedSms(job),
+        body: technicianAssignedSms(job, track),
       });
       result.sms = smsRes.delivered;
     } catch (err) {

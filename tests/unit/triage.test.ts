@@ -14,6 +14,8 @@ function input(overrides: Partial<IntakeInput>): IntakeInput {
     phone: "5550000000",
     address: "1 Main St",
     affectedServices: [],
+    room: "Kitchen",
+    floor: "ground",
     description: "",
     ...overrides,
   };

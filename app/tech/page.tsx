@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { URGENCY_RANK, type Submission, type Charge } from "@/lib/types";
+import {
+  URGENCY_RANK,
+  type Submission,
+  type Charge,
+  type JobPhoto,
+} from "@/lib/types";
+import { floorLabel } from "@/lib/rooms";
 
 const ETA_OPTIONS = [30, 60, 90, 120, 150, 180, 240];
 
@@ -17,12 +23,17 @@ interface QueueItem {
   withinNonLicensedScope: boolean;
   estimatedDurationMin: number;
   description: string;
+  additionalRequests: string;
   address: string;
+  room: string;
+  floor: string;
+  photoCount: number;
   location: { lat: number; lng: number } | null;
 }
 interface Assignment {
   job: Submission;
   charges: Charge[];
+  photos: JobPhoto[];
 }
 type Sort = "recent" | "urgent" | "near";
 
@@ -272,11 +283,12 @@ export default function TechApp() {
         {assignments.length > 0 && (
           <section style={{ marginTop: 18 }}>
             <h3 style={{ marginBottom: 8 }}>Your active jobs</h3>
-            {assignments.map(({ job, charges }) => (
+            {assignments.map(({ job, charges, photos }) => (
               <AssignmentCard
                 key={job.id}
                 job={job}
                 charges={charges}
+                photos={photos ?? []}
                 busy={busyId === job.id}
                 onEta={(m) => setEta(job.id, m)}
                 onCharged={load}
@@ -341,8 +353,19 @@ export default function TechApp() {
                     </div>
                   </div>
                   <div className="job-desc">{item.description}</div>
+                  {item.additionalRequests && (
+                    <div className="job-extras">
+                      <strong>Also while there:</strong> {item.additionalRequests}
+                    </div>
+                  )}
                   <div className="job-meta">
                     <span className="m">📍 {item.address}</span>
+                    <span className="m">
+                      🚪 {item.room} · {floorLabel(item.floor)}
+                    </span>
+                    {item.photoCount > 0 && (
+                      <span className="m">📷 {item.photoCount} photo(s)</span>
+                    )}
                     {dist != null && (
                       <span className="m dist">{dist.toFixed(1)} mi</span>
                     )}
@@ -377,12 +400,14 @@ export default function TechApp() {
 function AssignmentCard({
   job,
   charges,
+  photos,
   busy,
   onEta,
   onCharged,
 }: {
   job: Submission;
   charges: Charge[];
+  photos: JobPhoto[];
   busy: boolean;
   onEta: (m: number) => void;
   onCharged: () => void;
@@ -440,8 +465,34 @@ function AssignmentCard({
         <span className="m">👤 {job.input.name}</span>
         <span className="m">📞 {job.input.phone}</span>
         <span className="m">📍 {job.input.address}</span>
+        <span className="m">
+          🚪 {job.input.room} · {floorLabel(job.input.floor)}
+        </span>
+        {job.visitFee && (
+          <span className="m">
+            💳 Visit fee {money(job.visitFee.amountCents)} ({job.visitFee.status})
+          </span>
+        )}
       </div>
       <div className="job-desc">{job.input.description}</div>
+
+      {job.input.additionalRequests && (
+        <div className="job-extras">
+          <strong>Also while there:</strong> {job.input.additionalRequests}
+        </div>
+      )}
+
+      {/* Customer photos from intake — tap to open full size. */}
+      {photos.length > 0 && (
+        <div className="job-photos">
+          {photos.map((p) => (
+            <a key={p.id} href={p.dataUrl} target="_blank" rel="noreferrer">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.dataUrl} alt={p.name || "Customer photo"} />
+            </a>
+          ))}
+        </div>
+      )}
 
       {a?.etaMinutes == null && (
         <>

@@ -26,10 +26,16 @@ export async function POST(request: Request) {
     return noStoreJson({ error: "Validation failed" }, { status: 400 });
   }
 
+  // Origin for the customer's tracker link in the assignment email/SMS.
+  const origin =
+    request.headers.get("origin") ||
+    `${new URL(request.url).protocol}//${request.headers.get("host")}`;
+
   const result = await commitEta(
     parsed.data.submissionId,
     tech.id,
     parsed.data.etaMinutes,
+    origin,
   );
   if (!result.ok) {
     return noStoreJson({ error: result.reason }, { status: 409 });

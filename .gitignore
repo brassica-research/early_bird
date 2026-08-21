@@ -30,6 +30,8 @@ next-env.d.ts
 # test artifacts
 /.test-data
 /.e2e-data
+/.shots-data
+/.dbg-data
 /coverage
 
 # local JSON data store (runtime writes). Seed files are tracked; live data is not.

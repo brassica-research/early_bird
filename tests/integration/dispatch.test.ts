@@ -32,6 +32,8 @@ async function seedJob(id: string, clientUrgency?: Submission["input"]["clientUr
       phone: "5550001111",
       address: "1 Main St",
       affectedServices: [],
+      room: "Kitchen",
+      floor: "ground",
       description: "leaky faucet",
       clientUrgency,
       smsOptIn: true,

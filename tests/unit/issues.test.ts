@@ -69,3 +69,49 @@ describe("matchIssues ranking", () => {
     expect(m[0].issue.issue).toMatch(/clogged toilet/i);
   });
 });
+
+describe("assessIssue — drill-down phrasing and stray-keyword defense", () => {
+  // The symptom chips phrase problems as verbs while the catalog uses gerunds.
+  it("matches a drill-down selection to the catalog issue", () => {
+    const a = assessIssue(
+      "Faucet — Drips when shut off Faucet — Leaks at the base Primary bathroom",
+    );
+    expect(a).not.toBeNull();
+    expect(a!.issue.issue).toMatch(/dripping faucet/i);
+  });
+
+  it("treats verb and gerund phrasing the same", () => {
+    expect(assessIssue("the faucet drips")!.issue.issue).toMatch(
+      /dripping faucet/i,
+    );
+    expect(assessIssue("dripping faucet")!.issue.issue).toMatch(
+      /dripping faucet/i,
+    );
+    // "clogs" reads as "clogged", so a verb-phrased drain complaint lands on a
+    // drain issue. (Two common words on their own — "the drain clogs" — stay
+    // below the bar by design; the catalog has a dozen kinds of clogged drain.)
+    expect(assessIssue("the kitchen sink drain clogs up")!.issue.issue).toMatch(
+      /drain/i,
+    );
+  });
+
+  // A single rare word used to clear the bar on its own, because token weight
+  // is 1/document-frequency: "drips all night" matched "Camera night vision
+  // poor or IR glare" on the strength of "night" alone.
+  it("does not match on one stray rare word", () => {
+    const a = assessIssue(
+      "The bathroom faucet drips all night and water pools around the base.",
+    );
+    expect(a).not.toBeNull();
+    expect(a!.issue.issue).not.toMatch(/night vision/i);
+    expect(a!.issue.issue).toMatch(/faucet/i);
+
+    // "vision" alone shouldn't drag in the camera issue either.
+    expect(assessIssue("I need better vision in the hallway")).toBeNull();
+  });
+
+  it("still flags a safety hard-stop from a single strong keyword", () => {
+    const a = assessIssue("the microwave stopped heating");
+    expect(a!.hardStop).toBe(true);
+  });
+});

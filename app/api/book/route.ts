@@ -3,6 +3,7 @@ import { getInitializedStore } from "@/lib/store";
 import { bookSlot } from "@/lib/scheduling/availability";
 import { bookSchema } from "@/lib/validation";
 import { sendEmail } from "@/lib/notify/email";
+import { visitFeeForSlot } from "@/lib/pricing";
 import {
   bookingConfirmationEmail,
   opsBookingNotification,
@@ -12,6 +13,15 @@ export const runtime = "nodejs";
 
 // POST /api/book — reserve a slot for an existing submission.
 // Reservation is atomic (store.reserveSlot), so capacity can't be exceeded.
+//
+// Two modes:
+//   hold: false (default) — reserve AND confirm, emailing the customer. This
+//                           is the original one-shot booking behavior.
+//   hold: true            — reserve only, leaving the booking "requested"
+//                           while the customer pays the visit fee. The
+//                           confirmation (and its email) is issued by
+//                           /api/checkout once payment succeeds. Holding first
+//                           means nobody pays for a window that just filled up.
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -28,7 +38,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { submissionId, slotId } = parsed.data;
+  const { submissionId, slotId, hold } = parsed.data;
   const store = await getInitializedStore();
 
   const submission = await store.getSubmission(submissionId);
@@ -59,8 +69,19 @@ export async function POST(request: Request) {
   const updated = await store.updateSubmissionBooking(
     submissionId,
     slotId,
-    "confirmed",
+    hold ? "requested" : "confirmed",
   );
+
+  // A hold stops here: the slot is reserved, but nothing is confirmed and no
+  // one is emailed until the visit fee is paid.
+  if (hold) {
+    return NextResponse.json({
+      submission: updated,
+      slot: result.slot ? { ...result.slot, fee: visitFeeForSlot(result.slot) } : null,
+      held: true,
+      notified: false,
+    });
+  }
 
   // Send confirmation emails. Failures are logged but never fail the booking —
   // the slot is already reserved and the customer has an on-screen confirmation.
