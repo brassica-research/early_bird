@@ -55,6 +55,19 @@ describe("intake — room, floor and photos", () => {
     expect(submission.input.floor).toBe("second");
   });
 
+  it("keeps the 'anything else' extras on the submission, out of triage", async () => {
+    const { submission } = await newIntake({
+      description: "the bathroom faucet drips all night",
+      additionalRequests: "the hall light flickers and a door won't latch",
+    });
+    expect(submission.input.additionalRequests).toBe(
+      "the hall light flickers and a door won't latch",
+    );
+    // The primary issue still classifies as plumbing — the unrelated extras
+    // must not drag the category toward electrical.
+    expect(submission.triage.category).toBe("plumbing");
+  });
+
   it("rejects a missing room or an unknown floor", async () => {
     const noRoom = await intakePOST(
       jsonReq("/api/intake", {

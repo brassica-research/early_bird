@@ -142,6 +142,21 @@ working (for free, offline) as the fast path / fallback.
 
 ---
 
+## Screens
+
+Captured from the running app (`docs/screens/`).
+
+| | |
+| --- | --- |
+| **Issue drill-down** — area → item → symptom<br>![](docs/screens/01-issue-drilldown.png) | **Room, floor & photos**<br>![](docs/screens/02-room-floor-photos.png) |
+| **Anything else while we're there?**<br>![](docs/screens/03-additional-requests.png) | **Triage, with the extras carried through**<br>![](docs/screens/04-triage-and-extras.png) |
+| **Windows priced by start time**<br>![](docs/screens/05-priced-slots.png) | **Checkout — the visit fee**<br>![](docs/screens/06-payment.png) |
+| **Confirmed, tracker already live**<br>![](docs/screens/07-confirmed.png) | **Where's my tech?**<br>![](docs/screens/08-wheres-my-tech.png) |
+| **Technician's job card**<br>![](docs/screens/09-tech-job-card.png) | **Admin submissions**<br>![](docs/screens/10-admin-submissions.png) |
+| **Mobile — photo capture**<br>![](docs/screens/11-mobile-room-photos.png) | **Mobile — drill-down**<br>![](docs/screens/12-mobile-drilldown.png) |
+
+---
+
 ## Intake — what we ask, and why
 
 The form narrows the problem down instead of leaning on the description box:
@@ -155,6 +170,12 @@ The form narrows the problem down instead of leaning on the description box:
   door and how many flights of stairs. Rooms are chips that pre-fill a free-text
   field (people have workshops and nurseries); floors are a **closed set**, because
   they drive access and equipment decisions and have to be comparable.
+- **Anything else while we're there?**: a free-text box for unrelated odds and
+  ends to look at on the same visit. Deliberately kept OUT of triage — grading
+  the primary issue on a grab-bag of side requests would muddy the category and
+  urgency — but it IS scanned for safety keywords, so a gas smell mentioned in
+  passing still raises the banner. It reaches the technician's job card and the
+  ops inbox, and it doesn't change the visit fee.
 - **Photos** (`lib/photoUpload.ts`): `capture="environment"` puts the camera one tap
   away on a phone, with the library still available. Each pick is drawn to a canvas,
   downscaled to a 1400px edge and re-encoded as JPEG **in the browser** before upload

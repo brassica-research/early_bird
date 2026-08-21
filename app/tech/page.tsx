@@ -23,6 +23,7 @@ interface QueueItem {
   withinNonLicensedScope: boolean;
   estimatedDurationMin: number;
   description: string;
+  additionalRequests: string;
   address: string;
   room: string;
   floor: string;
@@ -352,6 +353,11 @@ export default function TechApp() {
                     </div>
                   </div>
                   <div className="job-desc">{item.description}</div>
+                  {item.additionalRequests && (
+                    <div className="job-extras">
+                      <strong>Also while there:</strong> {item.additionalRequests}
+                    </div>
+                  )}
                   <div className="job-meta">
                     <span className="m">📍 {item.address}</span>
                     <span className="m">
@@ -469,6 +475,12 @@ function AssignmentCard({
         )}
       </div>
       <div className="job-desc">{job.input.description}</div>
+
+      {job.input.additionalRequests && (
+        <div className="job-extras">
+          <strong>Also while there:</strong> {job.input.additionalRequests}
+        </div>
+      )}
 
       {/* Customer photos from intake — tap to open full size. */}
       {photos.length > 0 && (

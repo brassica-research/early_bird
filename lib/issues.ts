@@ -56,6 +56,17 @@ const STOPWORDS = new Set([
 const SYNONYMS: Record<string, string> = {
   leaky: "dripping",
   leaking: "dripping",
+  // The symptom chips (lib/services.ts) phrase things as verbs — "Drips when
+  // shut off", "Leaks at the base" — while the catalog titles are gerunds
+  // ("Dripping faucet"). Without these the most specific thing the customer
+  // told us would score LOWER than their free text.
+  drips: "dripping",
+  drip: "dripping",
+  leak: "dripping",
+  leaks: "dripping",
+  clog: "clogged",
+  clogs: "clogged",
+  clogging: "clogged",
   freon: "refrigerant",
   ac: "cooling",
   "a/c": "cooling",
@@ -147,17 +158,36 @@ export function matchIssues(text: string): IssueMatch[] {
   const out: IssueMatch[] = [];
   for (const sig of SIGS) {
     let score = 0;
+    let hits = 0;
     for (const t of sig.tokens) {
-      if (present.has(t) || qhay.includes(` ${t} `)) score += weight(t);
+      if (present.has(t) || qhay.includes(` ${t} `)) {
+        score += weight(t);
+        hits += 1;
+      }
     }
     let bigramBonus = 0;
     for (const bg of sig.bigrams) {
       if (qhay.includes(` ${bg} `)) bigramBonus += BIGRAM_BONUS;
     }
     score += Math.min(bigramBonus, BIGRAM_CAP);
-    if (sig.phrase && qhay.includes(` ${sig.phrase} `)) score += PHRASE_BONUS;
+    const phraseHit = Boolean(sig.phrase) && qhay.includes(` ${sig.phrase} `);
+    if (phraseHit) score += PHRASE_BONUS;
     const bar = sig.issue.hardStop ? HARDSTOP_THRESHOLD : THRESHOLD;
-    if (score >= bar) out.push({ issue: sig.issue, score });
+    // One stray rare word is not a match. Because weight() is 1/df, a single
+    // near-unique token clears the bar on its own — which is how "drips all
+    // night" matched "Camera night vision poor or IR glare" on the strength of
+    // "night". Outside a safety hard-stop, a lone token has to actually
+    // ACCOUNT FOR the issue it matched: either something corroborates it (a
+    // second title token, a bigram, the whole phrase) or it covers at least
+    // half the title's significant words. That keeps genuinely diagnostic
+    // one-word matches — "gfci" is half of "Tripped GFCI" — while rejecting a
+    // word that explains one sixth of a title about something else entirely.
+    const coverage = sig.tokens.length > 0 ? hits / sig.tokens.length : 0;
+    const corroborated =
+      hits >= 2 || bigramBonus > 0 || phraseHit || coverage >= 0.5;
+    if (score >= bar && (sig.issue.hardStop || corroborated)) {
+      out.push({ issue: sig.issue, score });
+    }
   }
   // Highest score wins; break ties toward the more severe / more likely issue
   // so a hard stop is never masked by a benign same-score match.

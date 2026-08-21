@@ -102,6 +102,11 @@ export function bookingConfirmationEmail(
     ${row("Room", `${escapeHtml(input.room)} · ${escapeHtml(floorLabel(input.floor))}`)}
     ${row("Issue", `${escapeHtml(triage.categoryLabel)} (${triage.urgency})`)}
     ${row("Estimated on-site time", `~${triage.estimatedDurationMin} min`)}
+    ${
+      input.additionalRequests
+        ? row("Also while we're there", escapeHtml(input.additionalRequests))
+        : ""
+    }
     ${feeRowHtml}
     ${scopeNote}
     ${issueNoteHtml(submission)}
@@ -118,6 +123,10 @@ Where: ${input.address}
 Room: ${input.room} · ${floorLabel(input.floor)}
 Issue: ${triage.categoryLabel} (${triage.urgency})
 Estimated on-site time: ~${triage.estimatedDurationMin} min${
+    input.additionalRequests
+      ? `\nAlso while we're there: ${input.additionalRequests}`
+      : ""
+  }${
     fee
       ? `\nVisit fee paid: ${formatMoney(fee.amountCents)} (${fee.cardBrand} ending ${fee.cardLast4})`
       : ""
@@ -162,6 +171,11 @@ export function opsBookingNotification(
     ${row("In non-licensed scope", triage.withinNonLicensedScope ? "yes" : "NO — needs licensed pro")}
     ${row("Safety/scope flags", escapeHtml(flags))}
     ${row("Description", escapeHtml(input.description))}
+    ${
+      input.additionalRequests
+        ? row("Also while there", escapeHtml(input.additionalRequests))
+        : ""
+    }
     <p style="margin:12px 0 0;color:#46586b;font-size:13px;">Submission ${submission.id}</p>
   `,
   );
@@ -176,7 +190,11 @@ Photos attached: ${submission.photoCount ?? 0}
 Category/urgency: ${triage.categoryLabel} / ${triage.urgency}
 In non-licensed scope: ${triage.withinNonLicensedScope ? "yes" : "NO — needs licensed pro"}
 Safety/scope flags: ${flags}
-Description: ${input.description}
+Description: ${input.description}${
+    input.additionalRequests
+      ? `\nAlso while there: ${input.additionalRequests}`
+      : ""
+  }
 Submission ${submission.id}`;
 
   return {

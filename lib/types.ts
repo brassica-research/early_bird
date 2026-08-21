@@ -43,6 +43,15 @@ export interface IntakeInput {
   floor: string;
   /** Free-text description of the issue/request. */
   description: string;
+  /**
+   * Unrelated extras the customer wants looked at during the same visit
+   * ("while you're here, the hall light flickers"). Deliberately kept OUT of
+   * triage: classifying the primary issue on a grab-bag of side requests would
+   * muddy the category and urgency. It reaches the technician on the job card
+   * and the ops inbox, and it IS scanned for safety keywords — a gas smell
+   * mentioned in passing still has to raise the banner.
+   */
+  additionalRequests?: string;
   /** How urgent the customer says it is (used to prioritize the tech queue). */
   clientUrgency?: Urgency;
   /** Whether the customer opted in to SMS text notifications at their number. */

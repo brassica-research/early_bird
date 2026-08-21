@@ -38,6 +38,8 @@ export interface QueueItem {
   withinNonLicensedScope: boolean;
   estimatedDurationMin: number;
   description: string;
+  /** Unrelated extras for the same visit — they affect how long to budget. */
+  additionalRequests: string;
   /** Address is needed to judge travel; full contact is revealed on claim. */
   address: string;
   /** Room the issue is in, and the floor — both affect access and tooling. */
@@ -59,6 +61,7 @@ function toQueueItem(s: Submission): QueueItem {
     withinNonLicensedScope: s.triage.withinNonLicensedScope,
     estimatedDurationMin: s.triage.estimatedDurationMin,
     description: s.input.description,
+    additionalRequests: s.input.additionalRequests ?? "",
     address: s.input.address,
     room: s.input.room,
     floor: s.input.floor,

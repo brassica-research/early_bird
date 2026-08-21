@@ -177,6 +177,7 @@ export default function IntakePage() {
   const fileInput = useRef<HTMLInputElement>(null);
 
   const [description, setDescription] = useState("");
+  const [additionalRequests, setAdditionalRequests] = useState("");
   const [clientUrgency, setClientUrgency] = useState<string>("");
   const [smsOptIn, setSmsOptIn] = useState(false);
   // Desktop CTA reveals the number instead of dialing (mobile dials directly).
@@ -218,8 +219,12 @@ export default function IntakePage() {
     [selection],
   );
 
-  // Live emergency scan of what the customer has entered so far.
-  const safety = detectSafety(`${description} ${affectedServices.join(" ")}`);
+  // Live emergency scan of what the customer has entered so far. The
+  // "anything else" box is included: a gas smell mentioned in passing has to
+  // raise the banner just as loudly as one in the main description.
+  const safety = detectSafety(
+    `${description} ${additionalRequests} ${affectedServices.join(" ")}`,
+  );
 
   // Resolve the state: explicit pick wins, else best-effort from the address.
   // Captured for internal routing/disposition only (not shown to the customer).
@@ -339,6 +344,9 @@ export default function IntakePage() {
           room,
           floor,
           description,
+          ...(additionalRequests.trim()
+            ? { additionalRequests: additionalRequests.trim() }
+            : {}),
           ...(clientUrgency ? { clientUrgency } : {}),
           smsOptIn,
           photos: photos.map(toUploadPayload),
@@ -823,6 +831,35 @@ export default function IntakePage() {
                 <IssueScopeAdvisory a={issueScope} />
               </div>
 
+              {/* Unrelated extras for the same visit. */}
+              <div className="form-field">
+                <label htmlFor="extras">
+                  Anything else while we&rsquo;re there?{" "}
+                  <span className="hint">
+                    — optional; unrelated odds and ends we can look at on the
+                    same visit
+                  </span>
+                </label>
+                <textarea
+                  id="extras"
+                  value={additionalRequests}
+                  onChange={(e) => setAdditionalRequests(e.target.value)}
+                  placeholder="e.g. The hall light flickers, and the guest bathroom door won't latch. No rush on either."
+                  maxLength={2000}
+                  rows={3}
+                />
+                {fieldErrors.additionalRequests && (
+                  <div className="field-error">
+                    {fieldErrors.additionalRequests[0]}
+                  </div>
+                )}
+                <p className="hint" style={{ marginTop: 6 }}>
+                  These don&rsquo;t change your triage or your visit fee — your
+                  technician will take a look and quote anything you decide to
+                  go ahead with.
+                </p>
+              </div>
+
               <div className="form-field">
                 <label>
                   How urgent is this?{" "}
@@ -910,6 +947,15 @@ export default function IntakePage() {
               </div>
 
               <p style={{ marginTop: 0 }}>{triage.summary}</p>
+
+              {result.submission.input.additionalRequests && (
+                <div className="alert alert-info" style={{ marginTop: 12 }}>
+                  <strong>Also while we&rsquo;re there</strong>
+                  <p style={{ margin: "4px 0 0" }}>
+                    {result.submission.input.additionalRequests}
+                  </p>
+                </div>
+              )}
 
               {triage.safetyFlags.length > 0 && (
                 <div className="alert alert-warn" style={{ marginTop: 12 }}>

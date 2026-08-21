@@ -56,6 +56,7 @@ export const intakeSchema = z.object({
     .trim()
     .min(5, "Please describe the issue")
     .max(4000),
+  additionalRequests: z.string().trim().max(2000).optional(),
   clientUrgency: z.enum(["emergency", "high", "normal", "low"]).optional(),
   smsOptIn: z.boolean().optional().default(false),
   photos: z.array(photoSchema).max(MAX_PHOTOS).optional().default([]),
