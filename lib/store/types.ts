@@ -41,6 +41,20 @@ export interface Store {
     status: BookingStatus,
   ): Promise<Submission | null>;
 
+  /** Record the visit fee collected at checkout. */
+  setSubmissionVisitFee(
+    id: string,
+    visitFee: import("@/lib/types").VisitFeePayment,
+  ): Promise<Submission | null>;
+
+  // --- Intake photos -------------------------------------------------------
+  /** Store the photos attached to one intake. */
+  createPhotos(photos: import("@/lib/types").JobPhoto[]): Promise<void>;
+  /** Photos for one submission, oldest first. */
+  listPhotosForSubmission(
+    submissionId: string,
+  ): Promise<import("@/lib/types").JobPhoto[]>;
+
   // --- Technician dispatch -------------------------------------------------
   /** Jobs still awaiting a technician (dispatchStatus "queued"). */
   listQueueJobs(): Promise<Submission[]>;

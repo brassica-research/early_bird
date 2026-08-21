@@ -29,6 +29,8 @@ function submission(id: string, status: Submission["dispatchStatus"] = "queued")
       phone: "5550001111",
       address: "1 Main St",
       affectedServices: [],
+      room: "Kitchen",
+      floor: "ground",
       description: "leaky faucet",
     },
     triage,

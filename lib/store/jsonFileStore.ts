@@ -14,6 +14,8 @@ import type {
   PasswordResetToken,
   TechPresence,
   DutySession,
+  JobPhoto,
+  VisitFeePayment,
 } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -45,6 +47,7 @@ const FILES = {
   resetTokens: "reset-tokens.json",
   presence: "tech-presence.json",
   dutySessions: "duty-sessions.json",
+  photos: "job-photos.json",
   heuristicLive: "heuristic-config.live.json",
 } as const;
 
@@ -177,6 +180,38 @@ export class JsonFileStore implements Store {
       await writeJson(FILES.submissions, all);
       return all[idx];
     });
+  }
+
+  async setSubmissionVisitFee(
+    id: string,
+    visitFee: VisitFeePayment,
+  ): Promise<Submission | null> {
+    return this.locked(async () => {
+      const all = await readJson<Submission[]>(FILES.submissions, []);
+      const idx = all.findIndex((s) => s.id === id);
+      if (idx === -1) return null;
+      all[idx] = { ...all[idx], visitFee };
+      await writeJson(FILES.submissions, all);
+      return all[idx];
+    });
+  }
+
+  // --- Intake photos -------------------------------------------------------
+
+  async createPhotos(photos: JobPhoto[]): Promise<void> {
+    if (photos.length === 0) return;
+    await this.locked(async () => {
+      const all = await readJson<JobPhoto[]>(FILES.photos, []);
+      all.push(...photos);
+      await writeJson(FILES.photos, all);
+    });
+  }
+
+  async listPhotosForSubmission(submissionId: string): Promise<JobPhoto[]> {
+    const all = await readJson<JobPhoto[]>(FILES.photos, []);
+    return all
+      .filter((p) => p.submissionId === submissionId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
   // --- Technician dispatch -------------------------------------------------

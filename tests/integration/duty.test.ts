@@ -66,7 +66,7 @@ describe("listAllTechJobs", () => {
     const mk = (id: string, status: Submission["dispatchStatus"], techId: string | null): Submission => ({
       id,
       createdAt: new Date().toISOString(),
-      input: { name: "P", email: "p@e.com", phone: "5550000000", address: "1 St", affectedServices: [], description: "x" },
+      input: { name: "P", email: "p@e.com", phone: "5550000000", address: "1 St", affectedServices: [], room: "Garage", floor: "ground", description: "x" },
       triage,
       heuristicTriage: triage,
       slotId: null,

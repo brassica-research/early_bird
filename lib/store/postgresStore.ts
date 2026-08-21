@@ -11,6 +11,8 @@ import type {
   PasswordResetToken,
   TechPresence,
   DutySession,
+  JobPhoto,
+  VisitFeePayment,
 } from "@/lib/types";
 // Import the seed as a module so it's bundled into the serverless function.
 // (Reading it from disk fails on Vercel, where the seed file isn't traced into
@@ -158,6 +160,14 @@ export class PostgresStore implements Store {
       );
       CREATE INDEX IF NOT EXISTS duty_tech_idx ON duty_sessions (tech_id, clock_in_at DESC);
       CREATE INDEX IF NOT EXISTS duty_open_idx ON duty_sessions (tech_id) WHERE clock_out_at IS NULL;
+      CREATE TABLE IF NOT EXISTS job_photos (
+        id TEXT PRIMARY KEY,
+        submission_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        data JSONB NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS job_photos_submission_idx
+        ON job_photos (submission_id, created_at);
       CREATE INDEX IF NOT EXISTS charges_submission_idx
         ON charges (submission_id);
       CREATE INDEX IF NOT EXISTS submissions_dispatch_idx
@@ -228,6 +238,43 @@ export class PostgresStore implements Store {
       [id, slotId, status],
     );
     return res.rows[0]?.data ?? null;
+  }
+
+  async setSubmissionVisitFee(
+    id: string,
+    visitFee: VisitFeePayment,
+  ): Promise<Submission | null> {
+    const res = await this.query(
+      `UPDATE submissions
+         SET data = jsonb_set(data, '{visitFee}', $2::jsonb, true)
+       WHERE id = $1
+       RETURNING data`,
+      [id, JSON.stringify(visitFee)],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
+  // --- Intake photos -------------------------------------------------------
+
+  async createPhotos(photos: JobPhoto[]): Promise<void> {
+    for (const photo of photos) {
+      await this.query(
+        `INSERT INTO job_photos (id, submission_id, created_at, data)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO NOTHING`,
+        [photo.id, photo.submissionId, photo.createdAt, photo],
+      );
+    }
+  }
+
+  async listPhotosForSubmission(submissionId: string): Promise<JobPhoto[]> {
+    const res = await this.query(
+      `SELECT data FROM job_photos
+       WHERE submission_id = $1
+       ORDER BY created_at ASC`,
+      [submissionId],
+    );
+    return res.rows.map((r: any) => r.data);
   }
 
   // --- Technician dispatch -------------------------------------------------

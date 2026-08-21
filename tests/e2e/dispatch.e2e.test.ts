@@ -83,6 +83,7 @@ describe("E2E — client → tech → admin", () => {
   const tech = new CookieJar();
   const admin = new CookieJar();
   let submissionId = "";
+  let slotFee = 0;
 
   it("registers a technician (invite-gated) and returns identity", async () => {
     const reg = await req("POST", "/api/tech/register", {
@@ -101,13 +102,53 @@ describe("E2E — client → tech → admin", () => {
     const res = await req("POST", "/api/intake", {
       body: {
         name: "Pat Client", email: "pat@home.com", phone: "5551239876",
-        address: "500 Oak St, Springfield IL", affectedServices: ["Leaky faucet"],
+        address: "500 Oak St, Springfield IL",
+        affectedServices: ["Faucet — Drips when shut off"],
+        room: "Kitchen", floor: "ground",
         description: "kitchen faucet leaking", clientUrgency: "high", smsOptIn: true,
       },
     });
     expect(res.status).toBe(201);
-    submissionId = (await res.json()).submission.id;
+    const intake = await res.json();
+    submissionId = intake.submission.id;
     expect(submissionId).toBeTruthy();
+    expect(intake.submission.input.room).toBe("Kitchen");
+
+    // Every offered window carries its server-priced visit fee.
+    const slots: Array<{ id: string; start: string; fee: { amountCents: number; tier: string } }> =
+      intake.availability;
+    expect(slots.length).toBeGreaterThan(0);
+    for (const slot of slots) {
+      const hour = new Date(slot.start).getHours();
+      expect(slot.fee.amountCents).toBe(hour >= 16 && hour < 21 ? 13500 : 9900);
+    }
+    slotFee = slots[0].fee.amountCents;
+
+    // Checkout: hold the window, then pay the visit fee to confirm it.
+    const hold = await req("POST", "/api/book", {
+      body: { submissionId, slotId: slots[0].id, hold: true },
+    });
+    expect(hold.status).toBe(200);
+    expect((await hold.json()).submission.bookingStatus).toBe("requested");
+
+    const pay = await req("POST", "/api/checkout", {
+      body: {
+        submissionId,
+        card: {
+          brand: "visa",
+          last4: "4242",
+          expMonth: 12,
+          expYear: new Date().getFullYear() + 3,
+          name: "Pat Client",
+          postalCode: "46383",
+        },
+      },
+    });
+    expect(pay.status).toBe(200);
+    const receipt = await pay.json();
+    expect(receipt.submission.bookingStatus).toBe("confirmed");
+    expect(receipt.visitFee.amountCents).toBe(slotFee);
+    expect(receipt.trackUrl).toContain(`/track/${submissionId}`);
   });
 
   it("shows the job in the tech queue and claims it atomically", async () => {
@@ -153,6 +194,24 @@ describe("E2E — client → tech → admin", () => {
     const h = await hist.json();
     expect(h.dutySessions.length).toBeGreaterThanOrEqual(1);
     expect(h.jobs.some((j: { id: string }) => j.id === submissionId)).toBe(true);
+  });
+
+  it("serves the customer tracker publicly, with a coarse location only", async () => {
+    // No cookie — the submission reference is the capability.
+    const res = await req("GET", `/api/track/${submissionId}`);
+    expect(res.status).toBe(200);
+    const { track } = await res.json();
+    expect(track.stage).toBe("en_route");
+    expect(track.etaMinutes).toBe(60);
+    expect(track.minutesRemaining).toBeGreaterThan(0);
+    // First name only, and the location is snapped to the ~1 mile grid, not
+    // the 39.8 / -89.64 fix the technician's phone reported.
+    expect(track.tech.firstName).toBe("Alex");
+    expect(track.tech.approxLocation).toEqual({ lat: 39.8, lng: -89.64 });
+    expect(JSON.stringify(track)).not.toContain("pat@home.com");
+
+    const missing = await req("GET", "/api/track/not-a-real-id");
+    expect(missing.status).toBe(404);
   });
 
   it("enforces auth and CSRF", async () => {

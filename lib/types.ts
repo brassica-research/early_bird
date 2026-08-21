@@ -35,8 +35,12 @@ export interface IntakeInput {
   address: string;
   /** USPS state code (e.g. "TX"), used for the state licensing advisory. */
   state?: string;
-  /** Customer-selected service areas/appliances (chips). */
+  /** Customer-selected service areas/appliances/symptoms (drill-down chips). */
   affectedServices: string[];
+  /** Which room the issue is in, e.g. "Kitchen" (free text; chips pre-fill). */
+  room: string;
+  /** Which floor it's on — a FloorId from lib/rooms (e.g. "second"). */
+  floor: string;
   /** Free-text description of the issue/request. */
   description: string;
   /** How urgent the customer says it is (used to prioritize the tech queue). */
@@ -184,6 +188,10 @@ export interface Submission {
    * computed at intake from the description + selected chips. Advisory only.
    */
   issueAssessment?: IssueAssessment | null;
+  /** How many photos the customer attached (the bytes live in the photo store). */
+  photoCount?: number;
+  /** The visit fee quoted + collected at checkout. Null until payment. */
+  visitFee?: VisitFeePayment | null;
   notes?: string;
 }
 
@@ -291,4 +299,61 @@ export interface Charge {
   provider: string;
   /** Processor-side id (e.g. Stripe PaymentIntent id). Null for manual. */
   providerRef: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Intake photos
+// ---------------------------------------------------------------------------
+
+/**
+ * A photo the customer attached at intake ("here's the leak"). Stored in its
+ * own collection rather than on the Submission so that listing submissions,
+ * queues and dispatch boards never drags image bytes along with them.
+ *
+ * The browser downscales and re-encodes before upload (see the intake form),
+ * so `dataUrl` is a modest, already-normalized image rather than a raw 12MP
+ * phone capture. Limits are enforced again server-side — see lib/rooms.
+ */
+export interface JobPhoto {
+  id: string;
+  submissionId: string;
+  createdAt: string;
+  /** Original filename, for the technician's reference. May be empty. */
+  name: string;
+  contentType: string;
+  /** Full `data:` URL (base64). Rendered directly by the tech app. */
+  dataUrl: string;
+  width: number;
+  height: number;
+  /** Decoded size of the image in bytes. */
+  bytes: number;
+}
+
+// ---------------------------------------------------------------------------
+// Checkout
+// ---------------------------------------------------------------------------
+
+/**
+ * The visit fee taken at checkout, recorded on the submission.
+ *
+ * Card data is intentionally minimal: the full number never reaches this
+ * server. The browser validates it and sends only the brand, last four digits
+ * and expiry so the customer (and the technician) can recognize the card on a
+ * receipt — everything else is the payment provider's job.
+ */
+export interface VisitFeePayment {
+  /** "day" (8am–4pm) or "evening" (4pm–9pm) — see lib/pricing. */
+  tier: "day" | "evening";
+  amountCents: number;
+  currency: string;
+  /** The Charge record this payment created. */
+  chargeId: string;
+  status: ChargeStatus;
+  paidAt: string;
+  /** Card brand as detected in the browser, e.g. "visa". */
+  cardBrand: string;
+  /** Last four digits only. */
+  cardLast4: string;
+  /** The slot this fee was priced against, for auditing. */
+  slotId: string;
 }

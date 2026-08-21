@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { adminBase } from "@/lib/adminBase";
 import type { Submission, FeedbackRecord } from "@/lib/types";
 import type { HeuristicConfig } from "@/lib/store/types";
+import { floorLabel } from "@/lib/rooms";
+import { formatMoney } from "@/lib/pricing";
 
 interface FeedbackStats {
   total: number;
@@ -307,9 +309,11 @@ export default function AdminPage() {
                     <th>When</th>
                     <th>Name</th>
                     <th>Category</th>
+                    <th>Where</th>
                     <th>Urgency</th>
                     <th>Scope</th>
                     <th>Booking</th>
+                    <th>Visit fee</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -320,6 +324,10 @@ export default function AdminPage() {
                       </td>
                       <td data-label="Name">{s.input.name}</td>
                       <td data-label="Category">{s.triage.categoryLabel}</td>
+                      <td data-label="Where">
+                        {s.input.room} · {floorLabel(s.input.floor)}
+                        {s.photoCount ? ` · ${s.photoCount} 📷` : ""}
+                      </td>
                       <td data-label="Urgency">{s.triage.urgency}</td>
                       <td data-label="Scope">
                         {s.triage.withinNonLicensedScope
@@ -327,6 +335,11 @@ export default function AdminPage() {
                           : "Licensed pro"}
                       </td>
                       <td data-label="Booking">{s.bookingStatus}</td>
+                      <td data-label="Visit fee">
+                        {s.visitFee
+                          ? `${formatMoney(s.visitFee.amountCents)} (${s.visitFee.status})`
+                          : "—"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

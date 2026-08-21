@@ -18,7 +18,11 @@ main lines, structural) is flagged up front.
 | Area | Path |
 | --- | --- |
 | Marketing landing page | `app/page.tsx` |
-| Multi-step intake → triage → scheduling | `app/intake/page.tsx` |
+| Multi-step intake → triage → scheduling → payment | `app/intake/page.tsx` |
+| Customer arrival tracker ("Where's my tech?") | `app/track/[id]/page.tsx`, `components/TechTracker.tsx`, `lib/tracking.ts` |
+| Issue catalog (category → item → symptom) | `lib/services.ts` |
+| Room / floor / photo capture | `lib/rooms.ts`, `lib/photoUpload.ts` |
+| Visit-fee pricing + checkout | `lib/pricing.ts`, `lib/checkout.ts`, `lib/card.ts` |
 | Ops dashboard (triage feedback loop) | `app/admin/page.tsx` |
 | Admin auth (signed-cookie login) | `lib/auth.ts`, `middleware.ts`, `app/admin/login` |
 | Email (confirmations + ops notify) | `lib/notify/*` |
@@ -138,6 +142,93 @@ working (for free, offline) as the fast path / fallback.
 
 ---
 
+## Intake — what we ask, and why
+
+The form narrows the problem down instead of leaning on the description box:
+
+- **Three-level issue picker** (`lib/services.ts`): **area** (Plumbing) → **item**
+  (Faucet) → **symptom** (Drips when shut off). Each level is optional after the
+  first — a category alone still triages — and the selection is flattened into the
+  `affectedServices` strings the heuristic and the Issues Matrix already score
+  against (`describeSelection`).
+- **Room + floor** (`lib/rooms.ts`): the address says which house; these say which
+  door and how many flights of stairs. Rooms are chips that pre-fill a free-text
+  field (people have workshops and nurseries); floors are a **closed set**, because
+  they drive access and equipment decisions and have to be comparable.
+- **Photos** (`lib/photoUpload.ts`): `capture="environment"` puts the camera one tap
+  away on a phone, with the library still available. Each pick is drawn to a canvas,
+  downscaled to a 1400px edge and re-encoded as JPEG **in the browser** before upload
+  — which keeps a driveway-LTE upload quick and strips EXIF (including GPS) on the
+  way. Limits (6 photos, 1.5 MB each, 6 MB total) are enforced again server-side.
+  Image bytes live in their own store collection, never on the `Submission`, so
+  queues, dispatch boards and admin lists don't drag them around. The claiming
+  technician sees them on the job card.
+
+---
+
+## Checkout — the visit fee
+
+Booking is **hold → pay → confirm**:
+
+1. The customer picks a window; `POST /api/book` with `hold: true` reserves it
+   (atomically) and leaves the booking `requested`.
+2. `POST /api/checkout` prices the held slot, charges the fee through the configured
+   payment provider, and records it on the submission.
+3. Only then is the booking `confirmed` and the confirmation email sent.
+
+Holding first means nobody pays for a window that filled up while they typed a card;
+paying before confirming means a confirmed booking is always a paid one. Checkout is
+**idempotent** — a double-tap returns the existing receipt rather than charging twice.
+
+| Window starts | Tier | Fee |
+| --- | --- | --- |
+| 8:00am – 3:59pm | Daytime | **$99** |
+| 4:00pm – 8:59pm | Evening | **$135** |
+
+A window is priced by the hour it **starts**, so the 2pm–5pm window is a $99 daytime
+visit even though it runs past 4pm — the customer is quoted on arrival time, not on
+the tail. Pricing lives in `lib/pricing.ts` and runs **server-side only**: the API
+attaches a fee to every slot it offers, and `/api/checkout` re-prices the held slot
+rather than trusting anything the browser sends, so a client in another timezone (or
+a tampered request) can't change what is charged.
+
+**Card handling.** The card number is validated in the browser (Luhn, brand, expiry —
+`lib/card.ts`) and stops there. Only the brand, last four digits and expiry reach the
+server, for the receipt. Money movement is the payment provider's job: the default
+`manual` provider writes a ledger entry, and `PAYMENTS_PROVIDER=stripe` swaps in a
+real processor with no caller changes.
+
+---
+
+## "Where's my tech?" (`/track/[id]`)
+
+Once a technician accepts a job and commits an ETA, the customer gets a live arrival
+view — linked from the confirmation screen, the confirmation email, and the
+assignment email/SMS:
+
+- **Stage timeline**: Booked → Tech assigned → On the way → Arriving.
+- **Countdown** to the committed ETA, anchored to the **server clock** (the payload
+  carries `serverNow`, so a device with a skewed clock still counts down correctly)
+  and ticking locally between 15-second polls.
+- **Proximity map**: a Samsara-style relative plot — home at the center, the
+  technician offset toward their real bearing, with an accuracy halo — plus "about
+  3.5 mi away, coming from the north-west".
+
+Two limits keep this from becoming employee surveillance (`lib/tracking.ts`):
+
+1. **Coarse only.** Coordinates are snapped to a fixed ~1 mile grid *on the server*
+   before they are ever published. Snapping to a fixed grid (rather than jittering)
+   also means repeated polls of a parked vehicle return the identical cell, so the
+   noise can't be averaged back into a precise fix.
+2. **Only while en route.** Location is published only for a job that technician has
+   claimed, while they are on duty with a fresh heartbeat, and only until the visit
+   ends. Off duty, stale, completed, or unassigned ⇒ no location at all.
+
+The payload carries the technician's **first name only** and no customer contact
+details.
+
+---
+
 ## Scheduling
 
 `data/slots.seed.json` defines window templates (label, hours, capacity, served
@@ -175,9 +266,11 @@ contract as the JSON driver, including atomic slot reservation via a conditional
 
 | Method & path | Purpose |
 | --- | --- |
-| `POST /api/intake` | Submit intake, triage it, return submission + availability |
-| `GET /api/availability` | Current open slots |
-| `POST /api/book` | Reserve a slot for a submission (atomic) |
+| `POST /api/intake` | Submit intake (incl. room, floor, photos), triage it, return submission + priced availability |
+| `GET /api/availability` | Current open slots, each with its visit fee |
+| `POST /api/book` | Reserve a slot for a submission (atomic); `hold: true` reserves without confirming |
+| `POST /api/checkout` | Charge the visit fee for a held slot, confirm the booking, send the confirmation |
+| `GET /api/track/:id` | Customer arrival tracker: stage, countdown, coarse technician location |
 | `GET /api/submissions` | Recent submissions (admin) |
 | `GET /api/feedback` | Feedback records + agreement stats |
 | `GET /api/heuristic` | Current config + pending proposals |
@@ -186,7 +279,9 @@ contract as the JSON driver, including atomic slot reservation via a conditional
 | `POST /api/admin/logout` | Clear the admin session |
 
 The admin page and the `submissions` / `feedback` / `heuristic` APIs are gated;
-the customer-facing `intake` / `availability` / `book` APIs are public.
+the customer-facing `intake` / `availability` / `book` / `checkout` / `track` APIs are
+public. `track` is a capability link — the unguessable submission id is the credential,
+and it's rate-limited so the id space can't be swept.
 
 ---
 
@@ -234,7 +329,11 @@ routes later). Requires `TECH_PASSCODE` — the **invite code** for creating acc
   guarded on `dispatchStatus = 'queued'`), so two technicians can never claim the same
   job — the loser gets a 409 and the queue updates live for everyone (polling).
 - **Committed ETA** in 30-minute increments → the customer is notified a technician is
-  assigned, by **email** and (if they opted in) **SMS**.
+  assigned, by **email** and (if they opted in) **SMS**, both carrying a link to the
+  live **"Where's my tech?"** tracker.
+- **Job context**: the claimed job card shows the **room and floor** and the customer's
+  **intake photos**, so the technician knows what they're walking into before they load
+  the van.
 - **Billing** (`lib/payments/*`): technicians record charges against a job through a
   provider abstraction — **manual ledger** by default, **Stripe**-ready by setting
   `PAYMENTS_PROVIDER=stripe` (+ `npm i stripe`, `STRIPE_SECRET_KEY`).
@@ -282,7 +381,8 @@ rewrite is baked during `next build`, not read only at runtime.
 See `.env.example`. Key ones: `ANTHROPIC_API_KEY`, `TRIAGE_MODEL` (default
 `claude-sonnet-5`), `STORE_DRIVER`, `DATABASE_URL`; technician portal
 `TECH_PASSCODE`/`TECH_SESSION_SECRET`; `GEOCODER`; SMS `TWILIO_*`; billing
-`PAYMENTS_PROVIDER`/`STRIPE_SECRET_KEY`; email `RESEND_API_KEY`/`EMAIL_FROM`/`EMAIL_OPS`.
+`PAYMENTS_PROVIDER`/`STRIPE_SECRET_KEY`; email `RESEND_API_KEY`/`EMAIL_FROM`/`EMAIL_OPS`;
+`APP_BASE_URL` (absolute base for tracker links in emails/SMS).
 
 ## Deploying to Vercel
 
