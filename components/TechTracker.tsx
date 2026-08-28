@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { GeoPoint } from "@/lib/types";
 import type { TrackStage, TrackView } from "@/lib/tracking";
+import { setActiveVisit, clearActiveVisit } from "@/lib/activeVisit";
 
 // ---------------------------------------------------------------------------
 // "Where's my tech?" — the customer's live arrival view.
@@ -138,6 +139,13 @@ export default function TechTracker({
       skewRef.current = new Date(data.track.serverNow).getTime() - Date.now();
       setTrack(data.track);
       setError(null);
+      // Remember this visit so the customer can always navigate back here from
+      // the site header — and forget it once the visit is over.
+      if (data.track.stage === "completed" || data.track.stage === "cancelled") {
+        clearActiveVisit();
+      } else {
+        setActiveVisit(submissionId);
+      }
     } catch {
       /* transient — the next poll retries */
     } finally {

@@ -46,6 +46,11 @@ export interface Store {
     id: string,
     visitFee: import("@/lib/types").VisitFeePayment,
   ): Promise<Submission | null>;
+  /** Shallow-merge a partial patch onto a submission (e.g. report, review). */
+  patchSubmission(
+    id: string,
+    patch: Partial<Submission>,
+  ): Promise<Submission | null>;
 
   // --- Intake photos -------------------------------------------------------
   /** Store the photos attached to one intake. */

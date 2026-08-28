@@ -170,6 +170,40 @@ export interface Assignment {
   estimatedArrival: string | null;
 }
 
+/**
+ * Structured details a technician captures on-site to hand a lead off to a
+ * licensed / 3rd-party vendor queue. Free-text but as complete as possible so
+ * the receiving vendor can act without a second visit.
+ */
+export interface VendorHandoff {
+  /** Trade / vendor type needed, e.g. "Licensed electrician". */
+  trade: string;
+  /** What the vendor needs to do. */
+  scope: string;
+  /** What the technician found on-site (measurements, model #s, condition). */
+  findings: string;
+  /** Parts or materials involved. */
+  parts: string;
+  /** Access notes: gate code, pets, parking, best entrance. */
+  accessNotes: string;
+  /** Customer's preferred timing / availability. */
+  preferredTiming: string;
+  /** Anything else useful for the vendor. */
+  notes: string;
+}
+
+/** A technician's close-out report on a claimed job. */
+export interface JobReport {
+  /** Did the technician resolve the issue on-site? Null until answered. */
+  resolved: boolean | null;
+  /** Issue summary + what was done / current state. */
+  progress: string;
+  /** Vendor-handoff packet, when the lead is passed on. Null otherwise. */
+  vendorHandoff: VendorHandoff | null;
+  /** When the report was last saved. */
+  updatedAt: string;
+}
+
 export interface Submission {
   id: string;
   createdAt: string;
@@ -201,6 +235,10 @@ export interface Submission {
   photoCount?: number;
   /** The visit fee quoted + collected at checkout. Null until payment. */
   visitFee?: VisitFeePayment | null;
+  /** Technician's close-out report (resolved?, progress, vendor handoff). */
+  report?: JobReport | null;
+  /** When the technician manually sent the customer a review request. */
+  reviewRequestedAt?: string | null;
   notes?: string;
 }
 

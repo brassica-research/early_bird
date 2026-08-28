@@ -309,6 +309,42 @@ export function technicianAssignedSms(
   return `Early Bird: ${techName} has been assigned to your ${triage.categoryLabel} request. ${etaPart}.${trackPart} Ref ${submission.id.slice(0, 8)}`;
 }
 
+/** Customer review-request email (sent manually from the technician side). */
+export function reviewRequestEmail(submission: Submission): EmailMessage {
+  const { input, triage, assignment } = submission;
+  const withTech = assignment?.techName
+    ? ` with ${escapeHtml(assignment.techName)}`
+    : "";
+  const reviewUrl = process.env.REVIEW_URL;
+  const cta = reviewUrl
+    ? `<p style="margin:0 0 16px;"><a href="${escapeHtml(reviewUrl)}" style="display:inline-block;background:#ff8c42;color:#241400;font-weight:700;text-decoration:none;padding:11px 18px;border-radius:9px;">Leave a review</a></p>`
+    : `<p style="margin:0 0 16px;">Just reply to this email with a few words about your experience.</p>`;
+  const html = layout(
+    "How did we do? ⭐",
+    `
+    <p style="margin:0 0 12px;">Hi ${escapeHtml(input.name)}, thanks for choosing Early Bird for your ${escapeHtml(triage.categoryLabel)} visit${withTech}.</p>
+    <p style="margin:0 0 12px;">We’d love your feedback — it helps us keep improving.</p>
+    ${cta}
+    <p style="margin:0;color:#46586b;font-size:13px;">Reference: ${submission.id}</p>
+  `,
+  );
+  const text = `Hi ${input.name}, thanks for choosing Early Bird for your ${triage.categoryLabel} visit${assignment?.techName ? ` with ${assignment.techName}` : ""}.
+
+We'd love your feedback.
+${reviewUrl ? `Leave a review: ${reviewUrl}` : "Just reply to this email with a few words about your experience."}
+
+Reference: ${submission.id}`;
+  return { to: input.email, subject: "How did we do? — Early Bird", html, text };
+}
+
+/** Customer review-request SMS (opt-in only). */
+export function reviewRequestSms(submission: Submission): string {
+  const reviewUrl = process.env.REVIEW_URL;
+  return `Early Bird: thanks for your visit! We'd love your feedback${
+    reviewUrl ? `: ${reviewUrl}` : " — reply to this text"
+  }. Ref ${submission.id.slice(0, 8)}`;
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
