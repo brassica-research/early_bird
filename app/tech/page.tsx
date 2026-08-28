@@ -70,6 +70,38 @@ function money(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+// Live arrival countdown, mirroring the customer's "Where's my tech?" timer so
+// the technician sees the same clock the customer is watching. Ticks locally
+// every second off the committed estimated-arrival time.
+function EtaCountdown({ iso }: { iso: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const diff = new Date(iso).getTime() - now;
+  const overdue = diff < 0;
+  const abs = Math.abs(diff);
+  const h = Math.floor(abs / 3_600_000);
+  const m = Math.floor((abs % 3_600_000) / 60_000);
+  const s = Math.floor((abs % 60_000) / 1000);
+  const clock =
+    (h > 0 ? `${h}:${String(m).padStart(2, "0")}` : `${m}`) +
+    `:${String(s).padStart(2, "0")}`;
+  const arrival = new Date(iso).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return (
+    <span
+      className={`badge ${overdue ? "badge-high" : "badge-ok"}`}
+      title={`Arrival ~${arrival}`}
+    >
+      ⏱ {overdue ? `Overdue ${clock}` : `Arriving in ${clock}`}
+    </span>
+  );
+}
+
 export default function TechApp() {
   const router = useRouter();
   const [tech, setTech] = useState<{ id: string; name: string } | null>(null);
@@ -375,7 +407,8 @@ export default function TechApp() {
                   <div className="form-actions">
                     <button
                       className="btn btn-primary"
-                      disabled={busyId === item.id}
+                      disabled={busyId === item.id || !onDuty}
+                      title={!onDuty ? "Go on duty to claim jobs" : undefined}
                       onClick={() => claim(item.id)}
                     >
                       {busyId === item.id ? (
@@ -386,6 +419,9 @@ export default function TechApp() {
                         "Claim job"
                       )}
                     </button>
+                    {!onDuty && (
+                      <span className="hint">Go on duty to claim.</span>
+                    )}
                   </div>
                 </div>
               );
@@ -417,6 +453,74 @@ function AssignmentCard({
   const [charging, setCharging] = useState(false);
   const [chargeMsg, setChargeMsg] = useState<string | null>(null);
   const a = job.assignment;
+
+  // --- Close-out report / vendor handoff ---
+  const r = job.report ?? null;
+  const [resolved, setResolved] = useState<boolean | null>(r?.resolved ?? null);
+  const [progress, setProgress] = useState(r?.progress ?? "");
+  const [handoffOpen, setHandoffOpen] = useState(!!r?.vendorHandoff);
+  const [handoff, setHandoff] = useState(() => ({
+    trade: r?.vendorHandoff?.trade ?? "",
+    scope: r?.vendorHandoff?.scope ?? "",
+    findings: r?.vendorHandoff?.findings ?? "",
+    parts: r?.vendorHandoff?.parts ?? "",
+    accessNotes: r?.vendorHandoff?.accessNotes ?? "",
+    preferredTiming: r?.vendorHandoff?.preferredTiming ?? "",
+    notes: r?.vendorHandoff?.notes ?? "",
+  }));
+  const setH =
+    (k: keyof typeof handoff) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+      setHandoff((h) => ({ ...h, [k]: e.target.value }));
+  const [savingReport, setSavingReport] = useState(false);
+  const [reportMsg, setReportMsg] = useState<string | null>(null);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewMsg, setReviewMsg] = useState<string | null>(null);
+
+  async function saveReport() {
+    setSavingReport(true);
+    setReportMsg(null);
+    try {
+      const res = await fetch("/api/tech/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          submissionId: job.id,
+          resolved,
+          progress,
+          vendorHandoff: handoffOpen ? handoff : null,
+        }),
+      });
+      const data = await res.json();
+      setReportMsg(res.ok ? "Report saved." : data.error || "Could not save report.");
+      if (res.ok) onCharged();
+    } finally {
+      setSavingReport(false);
+    }
+  }
+
+  async function sendReview() {
+    setReviewBusy(true);
+    setReviewMsg(null);
+    try {
+      const res = await fetch("/api/tech/review-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ submissionId: job.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setReviewMsg(
+          `Review request sent${data.notified?.sms ? " (email + SMS)" : " by email"}.`,
+        );
+        onCharged();
+      } else {
+        setReviewMsg(data.error || "Could not send review request.");
+      }
+    } finally {
+      setReviewBusy(false);
+    }
+  }
 
   async function submitCharge(e: React.FormEvent) {
     e.preventDefault();
@@ -455,8 +559,8 @@ function AssignmentCard({
     <div className="card job-card" style={{ borderColor: "var(--amber)" }}>
       <div className="job-top">
         <div className="job-cat">{job.triage.categoryLabel}</div>
-        {a?.etaMinutes != null ? (
-          <span className="badge badge-ok">ETA ~{a.etaMinutes} min</span>
+        {a?.estimatedArrival ? (
+          <EtaCountdown iso={a.estimatedArrival} />
         ) : (
           <span className="badge badge-high">Set ETA</span>
         )}
@@ -544,6 +648,152 @@ function AssignmentCard({
         {chargeMsg && (
           <div className="hint" style={{ marginTop: 6 }}>
             {chargeMsg}
+          </div>
+        )}
+      </div>
+
+      {/* Close-out report + vendor handoff */}
+      <div className="report-block">
+        <div className="hint" style={{ fontWeight: 700, marginBottom: 6 }}>
+          Job report
+        </div>
+
+        <div className="form-field" style={{ marginBottom: 8 }}>
+          <label>Did you resolve the issue?</label>
+          <div className="chips">
+            {[
+              [true, "Resolved"],
+              [false, "Not resolved"],
+            ].map(([val, label]) => (
+              <span
+                key={String(val)}
+                className="chip"
+                role="button"
+                tabIndex={0}
+                aria-pressed={resolved === val}
+                data-on={resolved === val}
+                onClick={() => setResolved(val as boolean)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setResolved(val as boolean);
+                  }
+                }}
+              >
+                {label as string}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="form-field">
+          <label htmlFor={`prog-${job.id}`}>Issue summary &amp; progress</label>
+          <textarea
+            id={`prog-${job.id}`}
+            value={progress}
+            onChange={(e) => setProgress(e.target.value)}
+            placeholder="What was wrong, what you did on-site, and the current state."
+          />
+        </div>
+
+        <label className="check-row" style={{ marginBottom: 0 }}>
+          <input
+            type="checkbox"
+            checked={handoffOpen}
+            onChange={(e) => setHandoffOpen(e.target.checked)}
+          />
+          <span>Hand this lead off to a licensed / 3rd-party vendor</span>
+        </label>
+
+        {handoffOpen && (
+          <div className="handoff-grid">
+            <p className="hint span-2" style={{ margin: "6px 0 2px" }}>
+              Customer, address, phone, and the original request are attached
+              automatically. Add as much as you can:
+            </p>
+            <div className="form-field">
+              <label>Trade / vendor needed</label>
+              <input
+                value={handoff.trade}
+                onChange={setH("trade")}
+                placeholder="e.g. Licensed electrician"
+              />
+            </div>
+            <div className="form-field">
+              <label>Preferred timing</label>
+              <input
+                value={handoff.preferredTiming}
+                onChange={setH("preferredTiming")}
+                placeholder="Customer availability"
+              />
+            </div>
+            <div className="form-field span-2">
+              <label>Scope of work</label>
+              <input
+                value={handoff.scope}
+                onChange={setH("scope")}
+                placeholder="What the vendor needs to do"
+              />
+            </div>
+            <div className="form-field span-2">
+              <label>On-site findings</label>
+              <textarea
+                value={handoff.findings}
+                onChange={setH("findings")}
+                placeholder="What you found (measurements, model #s, condition)"
+              />
+            </div>
+            <div className="form-field">
+              <label>Parts / materials</label>
+              <input
+                value={handoff.parts}
+                onChange={setH("parts")}
+                placeholder="e.g. 20A GFCI breaker"
+              />
+            </div>
+            <div className="form-field">
+              <label>Access notes</label>
+              <input
+                value={handoff.accessNotes}
+                onChange={setH("accessNotes")}
+                placeholder="Gate code, pets, parking, best entrance"
+              />
+            </div>
+            <div className="form-field span-2">
+              <label>Additional notes</label>
+              <textarea
+                value={handoff.notes}
+                onChange={setH("notes")}
+                placeholder="Anything else useful for the vendor"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="form-actions" style={{ marginTop: 10 }}>
+          <button
+            className="btn btn-primary"
+            onClick={saveReport}
+            disabled={savingReport}
+          >
+            {savingReport ? "Saving…" : "Save report"}
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={sendReview}
+            disabled={reviewBusy}
+          >
+            {reviewBusy ? "Sending…" : "Send review request"}
+          </button>
+        </div>
+        {reportMsg && (
+          <div className="hint" style={{ marginTop: 6 }}>
+            {reportMsg}
+          </div>
+        )}
+        {reviewMsg && (
+          <div className="hint" style={{ marginTop: 4 }}>
+            {reviewMsg}
           </div>
         )}
       </div>

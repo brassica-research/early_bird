@@ -254,6 +254,18 @@ export class PostgresStore implements Store {
     return res.rows[0]?.data ?? null;
   }
 
+  async patchSubmission(
+    id: string,
+    patch: Partial<Submission>,
+  ): Promise<Submission | null> {
+    // Shallow-merge the patch onto the stored JSON document.
+    const res = await this.query(
+      `UPDATE submissions SET data = data || $2::jsonb WHERE id = $1 RETURNING data`,
+      [id, JSON.stringify(patch)],
+    );
+    return res.rows[0]?.data ?? null;
+  }
+
   // --- Intake photos -------------------------------------------------------
 
   async createPhotos(photos: JobPhoto[]): Promise<void> {

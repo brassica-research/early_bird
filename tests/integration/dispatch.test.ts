@@ -9,6 +9,16 @@ import {
 } from "@/lib/dispatch";
 import type { Submission } from "@/lib/types";
 
+async function goOnDuty(techId: string) {
+  const store = await getInitializedStore();
+  await store.upsertPresence({
+    techId,
+    onDuty: true,
+    location: null,
+    lastSeenAt: new Date().toISOString(),
+  });
+}
+
 async function seedJob(id: string, clientUrgency?: Submission["input"]["clientUrgency"]) {
   const store = await getInitializedStore();
   const triage = {
@@ -49,8 +59,18 @@ async function seedJob(id: string, clientUrgency?: Submission["input"]["clientUr
 }
 
 describe("dispatch service — full flow", () => {
+  it("blocks claims from technicians who are off duty", async () => {
+    await seedJob("j0");
+    const blocked = await claimJob("j0", "tech-off", "Casey");
+    expect(blocked.ok).toBe(false);
+    expect(blocked.reason).toMatch(/on duty/i);
+  });
+
   it("queues, claims (once), commits ETA, and bills", async () => {
     await seedJob("j1", "high");
+    // Claiming requires being on duty (data dir is reset before each test).
+    await goOnDuty("tech-A");
+    await goOnDuty("tech-B");
 
     const queue = await getQueue();
     expect(queue).toHaveLength(1);
@@ -88,6 +108,7 @@ describe("dispatch service — full flow", () => {
 
   it("rejects an invalid ETA increment", async () => {
     await seedJob("j2");
+    await goOnDuty("tech-A");
     await claimJob("j2", "tech-A", "Alex");
     const bad = await commitEta("j2", "tech-A", 42);
     expect(bad.ok).toBe(false);
@@ -95,6 +116,7 @@ describe("dispatch service — full flow", () => {
 
   it("rejects a non-positive charge", async () => {
     await seedJob("j3");
+    await goOnDuty("tech-A");
     await claimJob("j3", "tech-A", "Alex");
     const bad = await recordCharge({
       submissionId: "j3",

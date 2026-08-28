@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   SERVICES,
@@ -11,7 +11,12 @@ import {
 import { detectSafety } from "@/lib/safety";
 import { STATES, parseStateFromAddress } from "@/lib/licensing";
 import { assessIssue, type IssueAssessment } from "@/lib/issues";
-import { FLOORS, MAX_PHOTOS, ROOM_SUGGESTIONS } from "@/lib/rooms";
+import {
+  FLOORS,
+  MAX_PHOTOS,
+  ROOM_SUGGESTIONS,
+  suggestRooms,
+} from "@/lib/rooms";
 import {
   formatBytes,
   preparePhoto,
@@ -218,6 +223,24 @@ export default function IntakePage() {
     () => describeSelection(selection),
     [selection],
   );
+
+  // Offer only the rooms where the selected issue could actually be — e.g. a
+  // toilet won't suggest the Kitchen or the Attic. Free text is still allowed.
+  const roomSuggestions = useMemo(
+    () => suggestRooms(selectedItems),
+    [selectedItems],
+  );
+  // If the room was chosen from a chip that no longer applies, clear it so the
+  // customer re-picks from the narrowed list. A typed (custom) room is kept.
+  useEffect(() => {
+    if (
+      room &&
+      ROOM_SUGGESTIONS.includes(room) &&
+      !roomSuggestions.includes(room)
+    ) {
+      setRoom("");
+    }
+  }, [room, roomSuggestions]);
 
   // Live emergency scan of what the customer has entered so far. The
   // "anything else" box is included: a gas smell mentioned in passing has to
@@ -677,7 +700,7 @@ export default function IntakePage() {
                   <span className="hint">— tap one or type your own</span>
                 </label>
                 <div className="chips">
-                  {ROOM_SUGGESTIONS.map((r) => (
+                  {roomSuggestions.map((r) => (
                     <Chip
                       key={r}
                       on={room === r}
@@ -902,10 +925,10 @@ export default function IntakePage() {
               <button className="btn btn-primary" disabled={submitting}>
                 {submitting ? (
                   <>
-                    <span className="spin" /> Triaging…
+                    <span className="spin" /> Connecting…
                   </>
                 ) : (
-                  "Triage my issue →"
+                  "Connect a Tech →"
                 )}
               </button>
               <Link href="/" className="btn btn-ghost">

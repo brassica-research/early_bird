@@ -8,12 +8,16 @@ import {
   type GeoPoint,
   type Assignment,
   type Charge,
+  type JobReport,
+  type VendorHandoff,
 } from "@/lib/types";
 import { sendEmail } from "@/lib/notify/email";
 import { sendSms } from "@/lib/notify/sms";
 import {
   technicianAssignedEmail,
   technicianAssignedSms,
+  reviewRequestEmail,
+  reviewRequestSms,
 } from "@/lib/notify/templates";
 import { getPaymentProvider, DEFAULT_CURRENCY } from "@/lib/payments";
 import { trackingUrl } from "@/lib/tracking";
@@ -87,6 +91,13 @@ export interface ClaimResult {
   reason?: string;
 }
 
+/** Whether a technician is currently on duty (an open, on-duty presence). */
+export async function isTechOnDuty(techId: string): Promise<boolean> {
+  const store = await getInitializedStore();
+  const presence = await store.listPresence();
+  return presence.some((p) => p.techId === techId && p.onDuty);
+}
+
 /** Atomically claim a queued job for a technician. */
 export async function claimJob(
   submissionId: string,
@@ -94,6 +105,10 @@ export async function claimJob(
   techName: string,
 ): Promise<ClaimResult> {
   const store = await getInitializedStore();
+  // Techs must be on duty to take work — claiming implies they're available.
+  if (!(await isTechOnDuty(techId))) {
+    return { ok: false, reason: "Go on duty before claiming a job." };
+  }
   const assignment: Assignment = {
     techId,
     techName,
@@ -246,4 +261,86 @@ export async function recordCharge(params: {
   };
   await store.createCharge(charge);
   return { ok: true, charge };
+}
+
+// ---------------------------------------------------------------------------
+// Technician close-out report + vendor handoff + review request
+// ---------------------------------------------------------------------------
+
+export interface JobReportInput {
+  resolved: boolean | null;
+  progress: string;
+  vendorHandoff: VendorHandoff | null;
+}
+
+export interface JobReportResult {
+  ok: boolean;
+  job?: Submission;
+  reason?: string;
+}
+
+/**
+ * Save a technician's close-out report (resolved?, progress, vendor handoff)
+ * on a job they are assigned to. Does not change dispatch status — the record
+ * is captured for the office / vendor queue and the admin history.
+ */
+export async function saveJobReport(
+  submissionId: string,
+  techId: string,
+  input: JobReportInput,
+): Promise<JobReportResult> {
+  const store = await getInitializedStore();
+  const current = await store.getSubmission(submissionId);
+  if (!current || current.assignment?.techId !== techId) {
+    return { ok: false, reason: "Job is not assigned to you." };
+  }
+  const report: JobReport = {
+    resolved: input.resolved,
+    progress: input.progress,
+    vendorHandoff: input.vendorHandoff,
+    updatedAt: new Date().toISOString(),
+  };
+  const job = await store.patchSubmission(submissionId, { report });
+  return { ok: true, job: job ?? current };
+}
+
+export interface ReviewRequestResult {
+  ok: boolean;
+  job?: Submission;
+  reason?: string;
+  notified?: { email: boolean; sms: boolean };
+}
+
+/** Send a review request to the customer (manual, tech-initiated). */
+export async function requestReview(
+  submissionId: string,
+  techId: string,
+): Promise<ReviewRequestResult> {
+  const store = await getInitializedStore();
+  const current = await store.getSubmission(submissionId);
+  if (!current || current.assignment?.techId !== techId) {
+    return { ok: false, reason: "Job is not assigned to you." };
+  }
+  const notified = { email: false, sms: false };
+  try {
+    const res = await sendEmail(reviewRequestEmail(current));
+    notified.email = res.delivered;
+  } catch (err) {
+    console.error("Review request email failed:", err);
+  }
+  if (current.input.smsOptIn && current.input.phone) {
+    try {
+      const res = await sendSms({
+        to: current.input.phone,
+        body: reviewRequestSms(current),
+      });
+      notified.sms = res.delivered;
+    } catch (err) {
+      console.error("Review request SMS failed:", err);
+    }
+  }
+  const job = await store.patchSubmission(submissionId, {
+    reviewRequestedAt: new Date().toISOString(),
+  });
+  return { ok: true, job: job ?? current, notified };
 }

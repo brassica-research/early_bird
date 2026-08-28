@@ -196,6 +196,20 @@ export class JsonFileStore implements Store {
     });
   }
 
+  async patchSubmission(
+    id: string,
+    patch: Partial<Submission>,
+  ): Promise<Submission | null> {
+    return this.locked(async () => {
+      const all = await readJson<Submission[]>(FILES.submissions, []);
+      const idx = all.findIndex((s) => s.id === id);
+      if (idx === -1) return null;
+      all[idx] = { ...all[idx], ...patch };
+      await writeJson(FILES.submissions, all);
+      return all[idx];
+    });
+  }
+
   // --- Intake photos -------------------------------------------------------
 
   async createPhotos(photos: JobPhoto[]): Promise<void> {

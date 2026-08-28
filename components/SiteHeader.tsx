@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { getActiveVisit, ACTIVE_VISIT_EVENT } from "@/lib/activeVisit";
 
 // Responsive site header. On wide screens the links sit inline; on mobile they
 // collapse behind a hamburger so the bar never crams or overflows. The "Book a
@@ -9,6 +10,21 @@ import Link from "next/link";
 export default function SiteHeader() {
   const [open, setOpen] = useState(false);
   const close = () => setOpen(false);
+
+  // When the customer has an active visit, surface a persistent link back to
+  // the "Where's my tech?" tracker so they can always return to it. Read on
+  // mount and refresh on our custom event and cross-tab storage changes.
+  const [visitId, setVisitId] = useState<string | null>(null);
+  useEffect(() => {
+    const sync = () => setVisitId(getActiveVisit());
+    sync();
+    window.addEventListener(ACTIVE_VISIT_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(ACTIVE_VISIT_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
 
   return (
     <header className="nav">
@@ -22,6 +38,11 @@ export default function SiteHeader() {
         <nav className="nav-desktop" aria-label="Primary">
           <Link href="/#services">Services</Link>
           <Link href="/#how">How it works</Link>
+          {visitId && (
+            <Link href={`/track/${visitId}`} className="nav-track">
+              📍 Where&rsquo;s my tech?
+            </Link>
+          )}
           <Link href="/intake" className="btn btn-primary nav-cta">
             Book a visit
           </Link>
@@ -58,6 +79,11 @@ export default function SiteHeader() {
           <Link href="/#how" onClick={close}>
             How it works
           </Link>
+          {visitId && (
+            <Link href={`/track/${visitId}`} onClick={close}>
+              📍 Where&rsquo;s my tech?
+            </Link>
+          )}
         </div>
       </div>
     </header>

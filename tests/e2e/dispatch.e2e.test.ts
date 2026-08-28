@@ -156,6 +156,14 @@ describe("E2E — client → tech → admin", () => {
     expect(q.status).toBe(200);
     expect((await q.json()).queue.some((j: { id: string }) => j.id === submissionId)).toBe(true);
 
+    // Off-duty technicians cannot claim.
+    const offDuty = await req("POST", "/api/tech/claim", { jar: tech, body: { submissionId } });
+    expect(offDuty.status).toBe(409);
+
+    // Go on duty, then the claim succeeds.
+    const onDuty = await req("POST", "/api/tech/heartbeat", { jar: tech, body: { onDuty: true, lat: 39.8, lng: -89.64 } });
+    expect(onDuty.status).toBe(200);
+
     const claim = await req("POST", "/api/tech/claim", { jar: tech, body: { submissionId } });
     expect(claim.status).toBe(200);
 
@@ -172,6 +180,36 @@ describe("E2E — client → tech → admin", () => {
       jar: tech, body: { submissionId, amountCents: 12500, description: "cartridge + labor" },
     });
     expect(charge.status).toBe(200);
+  });
+
+  it("saves a close-out report with vendor handoff and sends a review request", async () => {
+    const report = await req("POST", "/api/tech/report", {
+      jar: tech,
+      body: {
+        submissionId,
+        resolved: false,
+        progress: "Isolated a failing supply valve; needs a licensed plumber.",
+        vendorHandoff: {
+          trade: "Licensed plumber",
+          scope: "Replace corroded main supply valve",
+          findings: "Valve seized, minor weep at joint",
+          parts: "3/4in ball valve",
+          accessNotes: "Gate code 1234, dog in yard",
+          preferredTiming: "Weekday mornings",
+          notes: "Customer will be home",
+        },
+      },
+    });
+    expect(report.status).toBe(200);
+    const rj = await report.json();
+    expect(rj.job.report.resolved).toBe(false);
+    expect(rj.job.report.vendorHandoff.trade).toBe("Licensed plumber");
+
+    const review = await req("POST", "/api/tech/review-request", {
+      jar: tech, body: { submissionId },
+    });
+    expect(review.status).toBe(200);
+    expect((await review.json()).job.reviewRequestedAt).toBeTruthy();
   });
 
   it("reports presence and appears on the admin board (admin side)", async () => {

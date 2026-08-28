@@ -109,6 +109,29 @@ export const chargeSchema = z.object({
   description: z.string().trim().min(1, "Add a description").max(300),
 });
 
+// Vendor-handoff packet the tech fills in to pass a lead to a 3rd party.
+export const vendorHandoffSchema = z.object({
+  trade: z.string().trim().max(160).default(""),
+  scope: z.string().trim().max(2000).default(""),
+  findings: z.string().trim().max(2000).default(""),
+  parts: z.string().trim().max(1000).default(""),
+  accessNotes: z.string().trim().max(1000).default(""),
+  preferredTiming: z.string().trim().max(300).default(""),
+  notes: z.string().trim().max(2000).default(""),
+});
+
+// Technician close-out report saved on a claimed job.
+export const jobReportSchema = z.object({
+  submissionId: z.string().trim().min(1),
+  resolved: z.boolean().nullable().default(null),
+  progress: z.string().trim().max(4000).default(""),
+  vendorHandoff: vendorHandoffSchema.nullable().default(null),
+});
+
+export const reviewRequestSchema = z.object({
+  submissionId: z.string().trim().min(1),
+});
+
 export const heartbeatSchema = z.object({
   onDuty: z.boolean(),
   lat: z.number().gte(-90).lte(90).optional(),

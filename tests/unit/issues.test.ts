@@ -74,7 +74,7 @@ describe("assessIssue — drill-down phrasing and stray-keyword defense", () => 
   // The symptom chips phrase problems as verbs while the catalog uses gerunds.
   it("matches a drill-down selection to the catalog issue", () => {
     const a = assessIssue(
-      "Faucet — Drips when shut off Faucet — Leaks at the base Primary bathroom",
+      "Faucet — Drips when shut off Faucet — Leaks at the base Master bathroom",
     );
     expect(a).not.toBeNull();
     expect(a!.issue.issue).toMatch(/dripping faucet/i);
