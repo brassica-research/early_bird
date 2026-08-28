@@ -38,7 +38,7 @@ export const ROOM_CATALOG: RoomOption[] = [
     fixtures: ["sink", "kitchen_sink", "water", "dishwasher", "oven", "microwave", "fridge", "ice_maker", "wet", "power", "vent", "network"],
   },
   {
-    name: "Primary bathroom",
+    name: "Master bathroom",
     fixtures: ["toilet", "shower", "sink", "water", "wet", "power", "vent", "exhaust_fan"],
   },
   {
@@ -50,7 +50,7 @@ export const ROOM_CATALOG: RoomOption[] = [
     fixtures: ["living", "power", "vent", "thermostat", "tv", "network"],
   },
   {
-    name: "Primary bedroom",
+    name: "Master bedroom",
     fixtures: ["bedroom", "power", "vent", "tv", "network"],
   },
   {

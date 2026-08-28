@@ -12,12 +12,12 @@ describe("suggestRooms — issue-aware room filtering", () => {
 
   it("narrows a toilet to bathrooms + basement, excluding kitchen/attic", () => {
     const rooms = suggestRooms(["plumbing:toilet"]);
-    expect(rooms).toContain("Primary bathroom");
+    expect(rooms).toContain("Master bathroom");
     expect(rooms).toContain("Hall bathroom");
     expect(rooms).toContain("Basement");
     expect(rooms).not.toContain("Kitchen");
     expect(rooms).not.toContain("Attic");
-    expect(rooms).not.toContain("Primary bedroom");
+    expect(rooms).not.toContain("Master bedroom");
     // Whole home stays available as a catch-all.
     expect(rooms).toContain(WHOLE_HOME);
   });
@@ -25,7 +25,7 @@ describe("suggestRooms — issue-aware room filtering", () => {
   it("keeps a garbage disposal in the kitchen only", () => {
     const rooms = suggestRooms(["plumbing:disposal"]);
     expect(rooms).toContain("Kitchen");
-    expect(rooms).not.toContain("Primary bathroom");
+    expect(rooms).not.toContain("Master bathroom");
     expect(rooms).not.toContain("Attic");
   });
 
@@ -34,12 +34,12 @@ describe("suggestRooms — issue-aware room filtering", () => {
     expect(rooms).toContain("Basement");
     expect(rooms).toContain("Garage");
     expect(rooms).not.toContain("Kitchen");
-    expect(rooms).not.toContain("Primary bedroom");
+    expect(rooms).not.toContain("Master bedroom");
   });
 
   it("unions rooms across multiple constrained issues", () => {
     const rooms = suggestRooms(["plumbing:toilet", "appliance:dishwasher"]);
-    expect(rooms).toContain("Primary bathroom"); // from toilet
+    expect(rooms).toContain("Master bathroom"); // from toilet
     expect(rooms).toContain("Kitchen"); // from dishwasher
   });
 

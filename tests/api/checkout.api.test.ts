@@ -33,7 +33,7 @@ async function newIntake(overrides: Record<string, unknown> = {}) {
       phone: "5551239876",
       address: "500 Oak St, Springfield IL",
       affectedServices: ["Faucet — Drips when shut off"],
-      room: "Primary bathroom",
+      room: "Master bathroom",
       floor: "second",
       description: "the bathroom faucet drips all night",
       ...overrides,
@@ -51,7 +51,7 @@ async function newIntake(overrides: Record<string, unknown> = {}) {
 describe("intake — room, floor and photos", () => {
   it("stores the room and floor on the submission", async () => {
     const { submission } = await newIntake();
-    expect(submission.input.room).toBe("Primary bathroom");
+    expect(submission.input.room).toBe("Master bathroom");
     expect(submission.input.floor).toBe("second");
   });
 
